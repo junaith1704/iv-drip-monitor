@@ -1,0 +1,48 @@
+{
+  "project_info": {
+    "project_number": "683792963487",
+    "project_id": "iv-drip-monitor-49391",
+    "storage_bucket": "iv-drip-monitor-49391.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:683792963487:android:212e2a40cface2b6140faa",
+        "android_client_info": {
+          "package_name": "com.hospital.ivdrip.iv_drip_monitor"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAEhsHMVwABCkmXVGVeboQQ6F8yDz-rCK0"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:683792963487:android:c3719e952444797c140faa",
+        "android_client_info": {
+          "package_name": "com.junaith.ivdripmonitor"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAEhsHMVwABCkmXVGVeboQQ6F8yDz-rCK0"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
