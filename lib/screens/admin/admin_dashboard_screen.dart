@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../services/device_service.dart';
+import '../../services/firebase_service.dart';
 import '../../services/service_request_service.dart';
 import '../../models/device_model.dart';
 import '../../theme/clinical_theme.dart';
 import '../../widgets/status_badge.dart';
+import '../../widgets/connection_badge.dart';
 
 class AdminDashboardScreen extends StatelessWidget {
   final Function(int) onNavigateTab;
@@ -100,38 +102,50 @@ class AdminDashboardScreen extends StatelessWidget {
                   ),
                   const SizedBox(height: 12),
 
-                  Row(
-                    children: [
-                      Expanded(
-                        child: _buildActionTile(
+                  LayoutBuilder(
+                    builder: (context, constraints) {
+                      final tiles = [
+                        _buildActionTile(
                           icon: Icons.edit_location_alt_outlined,
                           title: 'Device Reassignment',
                           subtitle: 'Rename devices & update ward floors',
                           color: ClinicalTheme.primaryBlue,
                           onTap: () => onNavigateTab(1),
                         ),
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: _buildActionTile(
+                        _buildActionTile(
                           icon: Icons.history_edu_rounded,
                           title: 'Completed ivTrips',
                           subtitle: 'Search & audit infusion history',
                           color: ClinicalTheme.tealAccent,
                           onTap: () => onNavigateTab(2),
                         ),
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: _buildActionTile(
+                        _buildActionTile(
                           icon: Icons.people_alt_outlined,
                           title: 'Nurse & Staff Registry',
                           subtitle: 'Overview staff members & stats',
                           color: Colors.purple.shade700,
                           onTap: () => onNavigateTab(3),
                         ),
-                      ),
-                    ],
+                      ];
+                      if (constraints.maxWidth > 700) {
+                        return Row(
+                          children: [
+                            for (int i = 0; i < tiles.length; i++) ...[
+                              if (i > 0) const SizedBox(width: 12),
+                              Expanded(child: tiles[i]),
+                            ],
+                          ],
+                        );
+                      }
+                      return Column(
+                        children: [
+                          for (int i = 0; i < tiles.length; i++) ...[
+                            if (i > 0) const SizedBox(height: 12),
+                            tiles[i],
+                          ],
+                        ],
+                      );
+                    },
                   ),
 
                   const SizedBox(height: 28),
@@ -147,37 +161,62 @@ class AdminDashboardScreen extends StatelessWidget {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Padding(
-                          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                                                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
                           child: Row(
                             mainAxisAlignment: MainAxisAlignment.spaceBetween,
                             children: [
-                              const Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    'Live Hardware Telemetry Inventory',
-                                    style: TextStyle(
-                                      fontSize: 15,
-                                      fontWeight: FontWeight.w700,
-                                      color: ClinicalTheme.textPrimary,
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      'Live Hardware Telemetry Inventory',
+                                      style: const TextStyle(
+                                        fontSize: 15,
+                                        fontWeight: FontWeight.w700,
+                                        color: ClinicalTheme.textPrimary,
+                                      ),
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
                                     ),
-                                  ),
-                                  Text(
-                                    'ESP32-C3 Drop Sensors connected to Firestore',
-                                    style: TextStyle(fontSize: 12, color: ClinicalTheme.textSecondary),
-                                  ),
-                                ],
+                                    Text(
+                                      'ESP32-C3 Drop Sensors connected to Firestore',
+                                      style: const TextStyle(fontSize: 12, color: ClinicalTheme.textSecondary),
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                  ],
+                                ),
                               ),
+                              const SizedBox(width: 8),
                               TextButton.icon(
                                 onPressed: () => onNavigateTab(1),
                                 icon: const Icon(Icons.tune_rounded, size: 16),
                                 label: const Text('MANAGE ALL'),
+                                style: TextButton.styleFrom(
+                                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+                                  minimumSize: Size.zero,
+                                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                                ),
                               ),
                             ],
                           ),
                         ),
                         const Divider(height: 1, color: ClinicalTheme.borderSubtle),
-                        ListView.separated(
+                        if (devices.isEmpty)
+                          Padding(
+                            padding: const EdgeInsets.all(24),
+                            child: Center(
+                              child: Text(
+                                FirebaseService.isMockFallback
+                                    ? 'Cannot connect to the database'
+                                    : 'No registered hardware units in telemetry inventory.',
+                                style: const TextStyle(fontSize: 13, color: ClinicalTheme.textSecondary),
+                              ),
+                            ),
+                          )
+                        else
+                          ListView.separated(
                           shrinkWrap: true,
                           physics: const NeverScrollableScrollPhysics(),
                           itemCount: devices.length,
@@ -233,7 +272,15 @@ class AdminDashboardScreen extends StatelessWidget {
                                       ),
                                     ),
                                   ),
-                                  StatusBadge(status: device.status),
+                                  Wrap(
+                                    spacing: 6,
+                                    runSpacing: 4,
+                                    crossAxisAlignment: WrapCrossAlignment.center,
+                                    children: [
+                                      StatusBadge(status: device.status),
+                                      ConnectionBadge(device: device),
+                                    ],
+                                  ),
                                 ],
                               ),
                             );
@@ -276,13 +323,17 @@ class AdminDashboardScreen extends StatelessWidget {
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Text(
-                  title,
-                  style: const TextStyle(
-                    fontSize: 11,
-                    fontWeight: FontWeight.w800,
-                    color: ClinicalTheme.textSecondary,
-                    letterSpacing: 0.4,
+                Flexible(
+                  child: Text(
+                    title,
+                    overflow: TextOverflow.ellipsis,
+                    maxLines: 1,
+                    style: const TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w800,
+                      color: ClinicalTheme.textSecondary,
+                      letterSpacing: 0.4,
+                    ),
                   ),
                 ),
                 Icon(icon, size: 20, color: color),
@@ -293,6 +344,8 @@ class AdminDashboardScreen extends StatelessWidget {
               children: [
                 Text(
                   value,
+                  overflow: TextOverflow.ellipsis,
+                  maxLines: 1,
                   style: TextStyle(
                     fontSize: 26,
                     fontWeight: FontWeight.w900,
@@ -357,6 +410,8 @@ class AdminDashboardScreen extends StatelessWidget {
                       fontWeight: FontWeight.w700,
                       color: ClinicalTheme.textPrimary,
                     ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
                   ),
                   const SizedBox(height: 2),
                   Text(

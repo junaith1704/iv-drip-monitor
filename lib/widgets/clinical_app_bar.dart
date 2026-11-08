@@ -81,7 +81,7 @@ class ClinicalAppBar extends StatelessWidget implements PreferredSizeWidget {
           Padding(
             padding: const EdgeInsets.symmetric(vertical: 12),
             child: PopupMenuButton<String>(
-              tooltip: 'User Profile & Switcher',
+              tooltip: 'User Profile',
               offset: const Offset(0, 48),
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(8),
@@ -152,10 +152,6 @@ class ClinicalAppBar extends StatelessWidget implements PreferredSizeWidget {
               onSelected: (value) async {
                 if (value == 'logout') {
                   await authService.signOut();
-                } else if (value.startsWith('switch_')) {
-                  final targetEmail = value.replaceFirst('switch_', '');
-                  final targetUser = AuthService.mockUsers.firstWhere((u) => u.email == targetEmail);
-                  await authService.switchDemoUser(targetUser);
                 }
               },
               itemBuilder: (context) => [
@@ -173,38 +169,6 @@ class ClinicalAppBar extends StatelessWidget implements PreferredSizeWidget {
                         style: const TextStyle(fontSize: 12, color: ClinicalTheme.textSecondary),
                       ),
                     ],
-                  ),
-                ),
-                const PopupMenuDivider(),
-                const PopupMenuItem(
-                  enabled: false,
-                  child: Text(
-                    'SWITCH ROLE (DEMO TESTING):',
-                    style: TextStyle(fontSize: 10, fontWeight: FontWeight.w800, color: ClinicalTheme.textMuted),
-                  ),
-                ),
-                ...AuthService.mockUsers.map(
-                  (u) => PopupMenuItem(
-                    value: 'switch_${u.email}',
-                    child: Row(
-                      children: [
-                        Icon(
-                          u.isAdmin ? Icons.admin_panel_settings : Icons.health_and_safety,
-                          size: 16,
-                          color: u.isAdmin ? Colors.purple : ClinicalTheme.primaryBlue,
-                        ),
-                        const SizedBox(width: 8),
-                        Expanded(
-                          child: Text(
-                            '${u.name.split(',').first} (${u.role.toUpperCase()})',
-                            style: TextStyle(
-                              fontSize: 12,
-                              fontWeight: u.userId == user.userId ? FontWeight.bold : FontWeight.normal,
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
                   ),
                 ),
                 const PopupMenuDivider(),

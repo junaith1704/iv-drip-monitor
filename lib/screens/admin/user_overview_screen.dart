@@ -22,7 +22,7 @@ class UserOverviewScreen extends StatelessWidget {
       body: FutureBuilder<List<UserModel>>(
         future: authService.getAllUsers(),
         builder: (context, userSnap) {
-          final users = userSnap.data ?? AuthService.mockUsers;
+          final users = userSnap.data ?? [];
 
           return StreamBuilder<List<IvTripModel>>(
             stream: tripService.streamCompletedTrips(),
@@ -135,6 +135,17 @@ class UserOverviewScreen extends StatelessWidget {
                               ),
                       ),
 
+                      const SizedBox(height: 12),
+                      ElevatedButton.icon(
+                        onPressed: () => _showAddNurseDialog(context),
+                        icon: const Icon(Icons.person_add_alt_1, size: 18),
+                        label: const Text('ADD NURSE'),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: ClinicalTheme.primaryBlue,
+                          foregroundColor: Colors.white,
+                          padding: const EdgeInsets.symmetric(vertical: 14),
+                        ),
+                      ),
                       const SizedBox(height: 16),
 
                       // Users List
@@ -251,6 +262,71 @@ class UserOverviewScreen extends StatelessWidget {
             },
           );
         },
+      ),
+    );
+  }
+
+    Future<void> _showAddNurseDialog(BuildContext context) async {
+    final nameController = TextEditingController();
+    final emailController = TextEditingController();
+    final formKey = GlobalKey<FormState>();
+    final authService = context.read<AuthService>();
+
+    await showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Add Nurse'),
+        content: Form(
+          key: formKey,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text('Full Name', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
+              const SizedBox(height: 6),
+              TextFormField(
+                controller: nameController,
+                decoration: const InputDecoration(hintText: 'e.g. Priya Sharma'),
+                validator: (v) => v == null || v.trim().isEmpty ? 'Name required' : null,
+              ),
+              const SizedBox(height: 14),
+              const Text('Hospital Email', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
+              const SizedBox(height: 6),
+              TextFormField(
+                controller: emailController,
+                keyboardType: TextInputType.emailAddress,
+                decoration: const InputDecoration(hintText: 'e.g. priya@hospital.org'),
+                validator: (v) => v == null || !v.contains('@') ? 'Enter a valid email' : null,
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('CANCEL'),
+          ),
+          ElevatedButton(
+            onPressed: () async {
+              if (!formKey.currentState!.validate()) return;
+              final error = await authService.addPendingNurse(
+                name: nameController.text,
+                email: emailController.text,
+              );
+              if (ctx.mounted) Navigator.pop(ctx);
+              if (context.mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text(error ?? 'Nurse added. She can now enter this email on the login screen and set her password.'),
+                    backgroundColor: error == null ? ClinicalTheme.statusRunning : ClinicalTheme.statusAlarm,
+                    behavior: SnackBarBehavior.floating,
+                  ),
+                );
+              }
+            },
+            child: const Text('ADD NURSE'),
+          ),
+        ],
       ),
     );
   }

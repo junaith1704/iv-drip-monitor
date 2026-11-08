@@ -146,14 +146,26 @@ class _AlarmScreenState extends State<AlarmScreen> {
             ),
       body: widget.deviceId == null
           ? _buildWardAlarmsOverview(context, deviceService, tripService)
-          : FutureBuilder<DeviceModel?>(
-              future: deviceService.getDevice(widget.deviceId!),
+          : StreamBuilder<DeviceModel?>(
+              stream: deviceService.streamDevices().map((list) {
+                try {
+                  return list.firstWhere((d) => d.deviceId == widget.deviceId!);
+                } catch (_) {
+                  return null;
+                }
+              }),
               builder: (context, devSnap) {
                 final device = devSnap.data;
                 final isStuck = device?.isStuck ?? false || (device?.isAlarm ?? false);
 
-                return FutureBuilder<ActiveTripModel?>(
-                  future: tripService.getActiveTripForDevice(widget.deviceId!),
+                return StreamBuilder<ActiveTripModel?>(
+                  stream: tripService.streamActiveTrips().map((list) {
+                    try {
+                      return list.firstWhere((t) => t.deviceId == widget.deviceId!);
+                    } catch (_) {
+                      return null;
+                    }
+                  }),
                   builder: (context, tripSnap) {
                     final trip = tripSnap.data;
 
@@ -263,13 +275,61 @@ class _AlarmScreenState extends State<AlarmScreen> {
                                   ),
                                 ),
                                 const SizedBox(width: 8),
-                                StatusBadge(
-                                  status: device?.status ?? 'idle',
-                                  isLarge: true,
+                                Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    if (device != null && !device.boardOnline)
+                                      Container(
+                                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                                        margin: const EdgeInsets.only(right: 8),
+                                        decoration: BoxDecoration(
+                                          color: ClinicalTheme.statusAlarm.withOpacity(0.12),
+                                          borderRadius: BorderRadius.circular(4),
+                                          border: Border.all(color: ClinicalTheme.statusAlarm.withOpacity(0.4)),
+                                        ),
+                                        child: const Text(
+                                          'Offline',
+                                          style: TextStyle(
+                                            fontSize: 11,
+                                            fontWeight: FontWeight.bold,
+                                            color: ClinicalTheme.statusAlarm,
+                                          ),
+                                        ),
+                                      ),
+                                    if (device != null && device.isLowBattery)
+                                      Container(
+                                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                                        margin: const EdgeInsets.only(right: 8),
+                                        decoration: BoxDecoration(
+                                          color: ClinicalTheme.statusAlarm.withOpacity(0.12),
+                                          borderRadius: BorderRadius.circular(4),
+                                          border: Border.all(color: ClinicalTheme.statusAlarm.withOpacity(0.4)),
+                                        ),
+                                        child: Text(
+                                          'Low Battery (${device.battery}%)',
+                                          style: const TextStyle(
+                                            fontSize: 11,
+                                            fontWeight: FontWeight.bold,
+                                            color: ClinicalTheme.statusAlarm,
+                                          ),
+                                        ),
+                                      ),
+                                    StatusBadge(
+                                      status: device?.status ?? 'idle',
+                                      isLarge: true,
+                                    ),
+                                  ],
                                 ),
                               ],
                             ),
                             const Divider(height: 28, color: ClinicalTheme.borderSubtle),
+
+                            _buildInfoRow('Optical Speed', device?.speed ?? '--'),
+                            const SizedBox(height: 10),
+                            _buildInfoRow('Flow Rate (DPM)', device?.dpm != null ? device!.dpm!.toStringAsFixed(1) : '--'),
+                            const SizedBox(height: 10),
+                            _buildInfoRow('Hardware Battery', (device?.battery != null && device!.battery! > 0) ? '${device.battery}%' : 'No sensor'),
+                            const SizedBox(height: 10),
 
                             if (trip != null) ...[
                               _buildInfoRow('Patient Name', trip.patientName, isBold: true),
@@ -480,6 +540,389 @@ class _AlarmScreenState extends State<AlarmScreen> {
             ),
           ),
         ),
+      ],
+    );
+  }
+
+  Widget _buildWardAlarmsOverview(
+    BuildContext context,
+    DeviceService deviceService,
+    TripService tripService,
+  ) {
+    return StreamBuilder<List<DeviceModel>>(
+      stream: deviceService.streamDevices(),
+      builder: (context, devSnap) {
+        if (devSnap.connectionState == ConnectionState.waiting && !devSnap.hasData) {
+          return const Center(
+            child: CircularProgressIndicator(color: ClinicalTheme.primaryBlue),
+          );
+        }
+
+        final devices = devSnap.data ?? [];
+        final stuckDevices = devices.where((d) => d.isStuck || d.isAlarm).toList();
+
+        return StreamBuilder<List<ActiveTripModel>>(
+          stream: tripService.streamActiveTrips(),
+          builder: (context, tripSnap) {
+            final activeTrips = tripSnap.data ?? [];
+
+            ActiveTripModel? findTrip(String deviceId) {
+              try {
+                return activeTrips.firstWhere((t) => t.deviceId == deviceId);
+              } catch (_) {
+                return null;
+              }
+            }
+
+            final hasAlarms = stuckDevices.isNotEmpty;
+
+            return SingleChildScrollView(
+              padding: const EdgeInsets.all(20),
+              child: Center(
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 700),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      // High-Contrast Safety Overview Banner
+                      Container(
+                        padding: const EdgeInsets.all(20),
+                        decoration: BoxDecoration(
+                          color: hasAlarms ? ClinicalTheme.statusAlarmBg : ClinicalTheme.statusRunningBg,
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(
+                            color: hasAlarms ? ClinicalTheme.statusAlarm : ClinicalTheme.statusRunning,
+                            width: 2,
+                          ),
+                          boxShadow: [
+                            BoxShadow(
+                              color: (hasAlarms ? ClinicalTheme.statusAlarm : ClinicalTheme.statusRunning).withOpacity(0.12),
+                              blurRadius: 16,
+                              offset: const Offset(0, 4),
+                            ),
+                          ],
+                        ),
+                        child: Column(
+                          children: [
+                            Icon(
+                              hasAlarms ? Icons.warning_rounded : Icons.check_circle_rounded,
+                              size: 48,
+                              color: hasAlarms ? ClinicalTheme.statusAlarm : ClinicalTheme.statusRunning,
+                            ),
+                            const SizedBox(height: 12),
+                            Text(
+                              hasAlarms
+                                  ? 'CRITICAL ALERT: ${stuckDevices.length} WARD ALARM(S) ACTIVE'
+                                  : 'ALL WARD INFUSIONS OPERATING NORMALLY',
+                              style: TextStyle(
+                                fontSize: 17,
+                                fontWeight: FontWeight.w900,
+                                color: hasAlarms ? ClinicalTheme.statusAlarm : ClinicalTheme.statusRunning,
+                                letterSpacing: 0.5,
+                              ),
+                              textAlign: TextAlign.center,
+                            ),
+                            const SizedBox(height: 6),
+                            Text(
+                              hasAlarms
+                                  ? 'Immediate bedside verification required. One or more devices report optical sensor flow stoppage.'
+                                  : 'No optical sensor stoppages or hardware alerts detected across monitored stations.',
+                              style: const TextStyle(
+                                fontSize: 13,
+                                color: ClinicalTheme.deepNavy,
+                                fontWeight: FontWeight.w500,
+                              ),
+                              textAlign: TextAlign.center,
+                            ),
+                          ],
+                        ),
+                      ),
+
+                      const SizedBox(height: 24),
+
+                      // Active Alarms Section
+                      _buildActiveAlarmsSection(context, stuckDevices, activeTrips),
+
+                      if (devices.isNotEmpty) ...[
+                        const SizedBox(height: 24),
+                        const Text(
+                          'ALL MONITORED WARD STATIONS',
+                          style: TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w800,
+                            color: ClinicalTheme.textSecondary,
+                            letterSpacing: 0.5,
+                          ),
+                        ),
+                        const SizedBox(height: 12),
+                        ...devices.map((device) {
+                          final trip = findTrip(device.deviceId);
+                          final isDeviceStuck = device.isStuck || device.isAlarm;
+
+                          return Container(
+                            margin: const EdgeInsets.only(bottom: 10),
+                            padding: const EdgeInsets.all(14),
+                            decoration: BoxDecoration(
+                              color: Colors.white,
+                              borderRadius: BorderRadius.circular(10),
+                              border: Border.all(
+                                color: isDeviceStuck ? ClinicalTheme.statusAlarmBorder : ClinicalTheme.borderSubtle,
+                                width: isDeviceStuck ? 1.5 : 1.0,
+                              ),
+                            ),
+                            child: Row(
+                              children: [
+                                Container(
+                                  padding: const EdgeInsets.all(8),
+                                  decoration: BoxDecoration(
+                                    color: (isDeviceStuck ? ClinicalTheme.statusAlarm : ClinicalTheme.primaryBlue).withOpacity(0.1),
+                                    shape: BoxShape.circle,
+                                  ),
+                                  child: Icon(
+                                    isDeviceStuck ? Icons.warning_rounded : Icons.sensors,
+                                    color: isDeviceStuck ? ClinicalTheme.statusAlarm : ClinicalTheme.primaryBlue,
+                                    size: 20,
+                                  ),
+                                ),
+                                const SizedBox(width: 12),
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        device.currentName,
+                                        style: const TextStyle(
+                                          fontSize: 14,
+                                          fontWeight: FontWeight.w700,
+                                          color: ClinicalTheme.textPrimary,
+                                        ),
+                                      ),
+                                      Text(
+                                        trip != null ? 'Patient: ${trip.patientName}' : 'Hardware ID: ${device.deviceId}',
+                                        style: const TextStyle(
+                                          fontSize: 12,
+                                          color: ClinicalTheme.textSecondary,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                                StatusBadge(status: device.status),
+                                const SizedBox(width: 8),
+                                OutlinedButton(
+                                  onPressed: () {
+                                    Navigator.push(
+                                      context,
+                                      MaterialPageRoute(
+                                        builder: (_) => AlarmScreen(
+                                          deviceId: device.deviceId,
+                                          tripId: trip?.tripId,
+                                        ),
+                                      ),
+                                    );
+                                  },
+                                  style: OutlinedButton.styleFrom(
+                                    side: BorderSide(
+                                      color: isDeviceStuck ? ClinicalTheme.statusAlarm : ClinicalTheme.borderSubtle,
+                                    ),
+                                    foregroundColor: isDeviceStuck ? ClinicalTheme.statusAlarm : ClinicalTheme.primaryBlue,
+                                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                                    minimumSize: Size.zero,
+                                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
+                                  ),
+                                  child: Text(
+                                    isDeviceStuck ? 'RESPOND' : 'VIEW',
+                                    style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          );
+                        }),
+                      ],
+                    ],
+                  ),
+                ),
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
+  Widget _buildActiveAlarmsSection(
+    BuildContext context,
+    List<DeviceModel> stuckDevices,
+    List<ActiveTripModel> activeTrips,
+  ) {
+    if (stuckDevices.isEmpty) {
+      return Container(
+        padding: const EdgeInsets.all(20),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(color: ClinicalTheme.borderSubtle),
+        ),
+        child: const Row(
+          children: [
+            Icon(Icons.check_circle_outline_rounded, color: ClinicalTheme.statusRunning, size: 28),
+            SizedBox(width: 14),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'No Active Critical Alarms',
+                    style: TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w700,
+                      color: ClinicalTheme.textPrimary,
+                    ),
+                  ),
+                  SizedBox(height: 2),
+                  Text(
+                    'All ongoing infusions are delivering drops within normal safety parameters.',
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: ClinicalTheme.textSecondary,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    ActiveTripModel? findTrip(String deviceId) {
+      try {
+        return activeTrips.firstWhere((t) => t.deviceId == deviceId);
+      } catch (_) {
+        return null;
+      }
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text(
+          'ACTIVE CRITICAL ALERTS',
+          style: TextStyle(
+            fontSize: 12,
+            fontWeight: FontWeight.w800,
+            color: ClinicalTheme.statusAlarm,
+            letterSpacing: 0.5,
+          ),
+        ),
+        const SizedBox(height: 12),
+        ...stuckDevices.map((device) {
+          final trip = findTrip(device.deviceId);
+
+          return Container(
+            margin: const EdgeInsets.only(bottom: 14),
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(color: ClinicalTheme.statusAlarmBorder, width: 1.5),
+              boxShadow: [
+                BoxShadow(
+                  color: ClinicalTheme.statusAlarm.withOpacity(0.06),
+                  blurRadius: 10,
+                  offset: const Offset(0, 3),
+                ),
+              ],
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            device.currentName,
+                            style: const TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.w800,
+                              color: ClinicalTheme.textPrimary,
+                            ),
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            'Hardware ID: ${device.deviceId}',
+                            style: const TextStyle(
+                              fontFamily: 'monospace',
+                              fontSize: 11,
+                              color: ClinicalTheme.textSecondary,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    StatusBadge(status: device.status, isLarge: true),
+                  ],
+                ),
+                const Divider(height: 20, color: ClinicalTheme.borderSubtle),
+                if (trip != null) ...[
+                  _buildInfoRow('Patient Name', trip.patientName, isBold: true),
+                  const SizedBox(height: 8),
+                  _buildInfoRow('Diagnosis / Drug', trip.issue),
+                  const SizedBox(height: 8),
+                  _buildInfoRow(
+                    'Infusion Started',
+                    DateFormat('MMM d, yyyy • HH:mm').format(trip.startTime),
+                  ),
+                  const SizedBox(height: 8),
+                  _buildInfoRow(
+                    'Incident Count',
+                    '${trip.stoppedEvents.length} recorded stoppage(s)',
+                  ),
+                ] else ...[
+                  const Padding(
+                    padding: EdgeInsets.symmetric(vertical: 8),
+                    child: Text(
+                      'No active infusion associated with this device.',
+                      style: TextStyle(color: ClinicalTheme.textSecondary, fontSize: 13),
+                    ),
+                  ),
+                ],
+                const SizedBox(height: 14),
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton.icon(
+                    onPressed: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => AlarmScreen(
+                            deviceId: device.deviceId,
+                            tripId: trip?.tripId,
+                          ),
+                        ),
+                      );
+                    },
+                    icon: const Icon(Icons.emergency, size: 18),
+                    label: const Text('MANAGE BEDSIDE ALARM'),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: ClinicalTheme.statusAlarm,
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(vertical: 12),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                      textStyle: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          );
+        }),
       ],
     );
   }

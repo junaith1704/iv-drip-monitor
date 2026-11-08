@@ -147,7 +147,7 @@ class ClinicalTheme {
           elevation: 0,
           backgroundColor: primaryBlue,
           foregroundColor: Colors.white,
-          minimumSize: const Size.fromHeight(48),
+          minimumSize: const Size(64, 48),
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
           textStyle: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600, letterSpacing: 0.2),
         ),
@@ -155,7 +155,7 @@ class ClinicalTheme {
       outlinedButtonTheme: OutlinedButtonThemeData(
         style: OutlinedButton.styleFrom(
           foregroundColor: textPrimary,
-          minimumSize: const Size.fromHeight(48),
+          minimumSize: const Size(64, 48),
           side: const BorderSide(color: borderMedium),
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
           textStyle: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600),

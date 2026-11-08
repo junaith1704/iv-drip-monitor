@@ -56,13 +56,17 @@ class AlarmBanner extends StatelessWidget {
               children: [
                 Row(
                   children: [
-                    const Text(
-                      'FLOW STOPPAGE DETECTED',
-                      style: TextStyle(
-                        color: ClinicalTheme.statusAlarm,
-                        fontWeight: FontWeight.w800,
-                        fontSize: 13,
-                        letterSpacing: 0.4,
+                    const Flexible(
+                      child: Text(
+                        'FLOW STOPPAGE DETECTED',
+                        overflow: TextOverflow.ellipsis,
+                        maxLines: 1,
+                        style: TextStyle(
+                          color: ClinicalTheme.statusAlarm,
+                          fontWeight: FontWeight.w800,
+                          fontSize: 13,
+                          letterSpacing: 0.4,
+                        ),
                       ),
                     ),
                     if (totalStuck > 1) ...[

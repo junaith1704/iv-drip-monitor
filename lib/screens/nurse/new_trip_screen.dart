@@ -209,6 +209,7 @@ class _NewTripScreenState extends State<NewTripScreen> {
                         value: availableDevices.any((d) => d.deviceId == _selectedDeviceId)
                             ? _selectedDeviceId
                             : null,
+                        isExpanded: true,
                         decoration: const InputDecoration(
                           prefixIcon: Icon(Icons.router_outlined, color: ClinicalTheme.textMuted),
                           hintText: 'Select an available IV drip sensor unit',
@@ -320,34 +321,37 @@ class _NewTripScreenState extends State<NewTripScreen> {
                     const SizedBox(height: 32),
 
                     // Submit Button
-                    ElevatedButton(
-                      onPressed: (_isSubmitting || availableDevices.isEmpty) ? null : _startInfusion,
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: ClinicalTheme.primaryBlue,
-                        foregroundColor: Colors.white,
-                        padding: const EdgeInsets.symmetric(vertical: 16),
-                      ),
-                      child: _isSubmitting
-                          ? const SizedBox(
-                              height: 20,
-                              width: 20,
-                              child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2),
-                            )
-                          : const Row(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: [
-                                Icon(Icons.play_arrow_rounded, size: 22),
-                                SizedBox(width: 8),
-                                Text(
-                                  'START INFUSION TRACKING',
-                                  style: TextStyle(
-                                    fontSize: 14,
-                                    fontWeight: FontWeight.w700,
-                                    letterSpacing: 0.5,
+                    SizedBox(
+                      width: double.infinity,
+                      child: ElevatedButton(
+                        onPressed: (_isSubmitting || availableDevices.isEmpty) ? null : _startInfusion,
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: ClinicalTheme.primaryBlue,
+                          foregroundColor: Colors.white,
+                          padding: const EdgeInsets.symmetric(vertical: 16),
+                        ),
+                        child: _isSubmitting
+                            ? const SizedBox(
+                                height: 20,
+                                width: 20,
+                                child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2),
+                              )
+                            : const Row(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  Icon(Icons.play_arrow_rounded, size: 22),
+                                  SizedBox(width: 8),
+                                  Text(
+                                    'START INFUSION TRACKING',
+                                    style: TextStyle(
+                                      fontSize: 14,
+                                      fontWeight: FontWeight.w700,
+                                      letterSpacing: 0.5,
+                                    ),
                                   ),
-                                ),
-                              ],
-                            ),
+                                ],
+                              ),
+                      ),
                     ),
                   ],
                 ),

@@ -179,50 +179,57 @@ class _AdminServiceRequestsScreenState extends State<AdminServiceRequestsScreen>
                                 Row(
                                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                                   children: [
-                                    Row(
-                                      children: [
-                                        Container(
-                                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                                          decoration: BoxDecoration(
-                                            color: ClinicalTheme.statusStuckBg,
-                                            borderRadius: BorderRadius.circular(4),
-                                            border: Border.all(color: ClinicalTheme.statusStuckBorder),
-                                          ),
-                                          child: const Row(
-                                            children: [
-                                              Icon(Icons.error_outline, size: 14, color: ClinicalTheme.statusStuck),
-                                              SizedBox(width: 4),
-                                              Text(
-                                                'OPEN TICKET',
-                                                style: TextStyle(
-                                                  color: ClinicalTheme.statusStuck,
-                                                  fontSize: 11,
-                                                  fontWeight: FontWeight.w800,
-                                                ),
-                                              ),
-                                            ],
-                                          ),
-                                        ),
-                                        if (req.deviceName != null) ...[
-                                          const SizedBox(width: 8),
+                                    Expanded(
+                                      child: Row(
+                                        children: [
                                           Container(
                                             padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                                             decoration: BoxDecoration(
-                                              color: ClinicalTheme.background,
+                                              color: ClinicalTheme.statusStuckBg,
                                               borderRadius: BorderRadius.circular(4),
+                                              border: Border.all(color: ClinicalTheme.statusStuckBorder),
                                             ),
-                                            child: Text(
-                                              '${req.deviceName!} (${req.deviceId ?? ""})',
-                                              style: const TextStyle(
-                                                fontSize: 12,
-                                                fontWeight: FontWeight.w600,
-                                                color: ClinicalTheme.textPrimary,
-                                              ),
+                                            child: const Row(
+                                              children: [
+                                                Icon(Icons.error_outline, size: 14, color: ClinicalTheme.statusStuck),
+                                                SizedBox(width: 4),
+                                                Text(
+                                                  'OPEN TICKET',
+                                                  style: TextStyle(
+                                                    color: ClinicalTheme.statusStuck,
+                                                    fontSize: 11,
+                                                    fontWeight: FontWeight.w800,
+                                                  ),
+                                                ),
+                                              ],
                                             ),
                                           ),
+                                          if (req.deviceName != null) ...[
+                                            const SizedBox(width: 8),
+                                            Flexible(
+                                              child: Container(
+                                                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                                decoration: BoxDecoration(
+                                                  color: ClinicalTheme.background,
+                                                  borderRadius: BorderRadius.circular(4),
+                                                ),
+                                                child: Text(
+                                                  '${req.deviceName!} (${req.deviceId ?? ""})',
+                                                  overflow: TextOverflow.ellipsis,
+                                                  maxLines: 1,
+                                                  style: const TextStyle(
+                                                    fontSize: 12,
+                                                    fontWeight: FontWeight.w600,
+                                                    color: ClinicalTheme.textPrimary,
+                                                  ),
+                                                ),
+                                              ),
+                                            ),
+                                          ],
                                         ],
-                                      ],
+                                      ),
                                     ),
+                                    const SizedBox(width: 8),
                                     Text(
                                       DateFormat('yyyy-MM-dd • HH:mm').format(req.raisedAt),
                                       style: const TextStyle(fontSize: 11, color: ClinicalTheme.textMuted),
@@ -256,31 +263,37 @@ class _AdminServiceRequestsScreenState extends State<AdminServiceRequestsScreen>
                                 Row(
                                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                                   children: [
-                                    Row(
-                                      children: [
-                                        const Icon(Icons.person_outline, size: 16, color: ClinicalTheme.textSecondary),
-                                        const SizedBox(width: 6),
-                                        Text(
-                                          'Submitted by: ${req.raisedByName ?? req.raisedBy}',
-                                          style: const TextStyle(
-                                            fontSize: 12,
-                                            fontWeight: FontWeight.w600,
-                                            color: ClinicalTheme.textSecondary,
+                                    Expanded(
+                                      child: Row(
+                                        children: [
+                                          const Icon(Icons.person_outline, size: 16, color: ClinicalTheme.textSecondary),
+                                          const SizedBox(width: 6),
+                                          Flexible(
+                                            child: Text(
+                                              'Submitted by: ${req.raisedByName ?? req.raisedBy}',
+                                              overflow: TextOverflow.ellipsis,
+                                              maxLines: 1,
+                                              style: const TextStyle(
+                                                fontSize: 12,
+                                                fontWeight: FontWeight.w600,
+                                                color: ClinicalTheme.textSecondary,
+                                              ),
+                                            ),
                                           ),
-                                        ),
-                                      ],
+                                        ],
+                                      ),
                                     ),
                                     ElevatedButton.icon(
                                       onPressed: () => _handleResolve(context, req),
-                                      icon: const Icon(Icons.check_rounded, size: 16),
+                                      icon: const Icon(Icons.check_circle, size: 16),
                                       label: const Text('RESOLVE'),
                                       style: ElevatedButton.styleFrom(
                                         backgroundColor: ClinicalTheme.statusRunning,
                                         foregroundColor: Colors.white,
-                                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
                                         minimumSize: Size.zero,
                                         tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                                        textStyle: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
+                                        textStyle: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold),
                                       ),
                                     ),
                                   ],
@@ -329,33 +342,40 @@ class _AdminServiceRequestsScreenState extends State<AdminServiceRequestsScreen>
                               Row(
                                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                                 children: [
-                                  Row(
-                                    children: [
-                                      Container(
-                                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                                        decoration: BoxDecoration(
-                                          color: ClinicalTheme.statusRunningBg,
-                                          borderRadius: BorderRadius.circular(4),
-                                          border: Border.all(color: ClinicalTheme.statusRunningBorder),
-                                        ),
-                                        child: const Text(
-                                          'RESOLVED',
-                                          style: TextStyle(
-                                            color: ClinicalTheme.statusRunning,
-                                            fontSize: 11,
-                                            fontWeight: FontWeight.w800,
+                                  Expanded(
+                                    child: Row(
+                                      children: [
+                                        Container(
+                                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                          decoration: BoxDecoration(
+                                            color: ClinicalTheme.statusRunningBg,
+                                            borderRadius: BorderRadius.circular(4),
+                                            border: Border.all(color: ClinicalTheme.statusRunningBorder),
+                                          ),
+                                          child: const Text(
+                                            'RESOLVED',
+                                            style: TextStyle(
+                                              color: ClinicalTheme.statusRunning,
+                                              fontSize: 11,
+                                              fontWeight: FontWeight.w800,
+                                            ),
                                           ),
                                         ),
-                                      ),
-                                      if (req.deviceName != null) ...[
-                                        const SizedBox(width: 8),
-                                        Text(
-                                          req.deviceName!,
-                                          style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13),
-                                        ),
+                                        if (req.deviceName != null) ...[
+                                          const SizedBox(width: 8),
+                                          Flexible(
+                                            child: Text(
+                                              req.deviceName!,
+                                              overflow: TextOverflow.ellipsis,
+                                              maxLines: 1,
+                                              style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13),
+                                            ),
+                                          ),
+                                        ],
                                       ],
-                                    ],
+                                    ),
                                   ),
+                                  const SizedBox(width: 8),
                                   Text(
                                     req.resolvedAt != null
                                         ? 'Resolved on ${DateFormat('MMM d, HH:mm').format(req.resolvedAt!)}'

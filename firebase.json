@@ -1,0 +1,39 @@
+{
+  "flutter": {
+    "platforms": {
+      "android": {
+        "default": {
+          "projectId": "iv-drip-monitor-49391",
+          "appId": "1:683792963487:android:212e2a40cface2b6140faa",
+          "fileOutput": "android/app/google-services.json"
+        }
+      },
+      "dart": {
+        "lib/firebase_options.dart": {
+          "projectId": "iv-drip-monitor-49391",
+          "configurations": {
+            "android": "1:683792963487:android:212e2a40cface2b6140faa",
+            "ios": "1:683792963487:ios:e0699540a8c70e0d140faa",
+            "macos": "1:683792963487:ios:e0699540a8c70e0d140faa",
+            "web": "1:683792963487:web:447b8aab92ba386a140faa",
+            "windows": "1:683792963487:web:45fa7f0ba683ca53140faa"
+          }
+        }
+      }
+    }
+  },
+    "hosting": {
+    "public": "build/web",
+    "ignore": [
+      "firebase.json",
+      "**/.*",
+      "**/node_modules/**"
+    ],
+    "rewrites": [
+      {
+        "source": "**",
+        "destination": "/index.html"
+      }
+    ]
+  }
+}

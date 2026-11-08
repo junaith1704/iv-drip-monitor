@@ -9,31 +9,7 @@ class ServiceRequestService extends ChangeNotifier {
   FirebaseFirestore get _firestore => FirebaseFirestore.instance;
   final _uuid = const Uuid();
 
-  // In-memory fallback mock requests
-  final List<ServiceRequestModel> _mockRequests = [
-    ServiceRequestModel(
-      requestId: 'req_001',
-      raisedBy: 'nurse_sarah_01',
-      raisedByName: 'Nurse Sarah Jenkins, RN',
-      deviceId: 'ESP32_03',
-      deviceName: 'Floor 2 - Bed 105',
-      issueText: 'Optical drip chamber sensor latch loose. Intermittent drop detection failure.',
-      status: 'open',
-      raisedAt: DateTime.now().subtract(const Duration(hours: 3)),
-    ),
-    ServiceRequestModel(
-      requestId: 'req_002',
-      raisedBy: 'nurse_david_02',
-      raisedByName: 'Nurse David Chen, BSN',
-      deviceId: 'ESP32_01',
-      deviceName: 'Floor 2 - Bed 101',
-      issueText: 'Battery level draining faster than usual, please replace internal LiPo pack.',
-      status: 'resolved',
-      raisedAt: DateTime.now().subtract(const Duration(days: 2)),
-      resolvedAt: DateTime.now().subtract(const Duration(days: 1)),
-      resolvedBy: 'Dr. Robert Vance (Clinical Admin)',
-    ),
-  ];
+  final List<ServiceRequestModel> _mockRequests = [];
 
   final StreamController<List<ServiceRequestModel>> _requestsStreamController =
       StreamController<List<ServiceRequestModel>>.broadcast();
@@ -50,7 +26,6 @@ class ServiceRequestService extends ChangeNotifier {
     );
   }
 
-  /// Stream requests for a specific nurse
   Stream<List<ServiceRequestModel>> streamNurseRequests(String nurseUserId) {
     if (FirebaseService.isMockFallback) {
       return _getMockStream().map((list) {
@@ -58,27 +33,16 @@ class ServiceRequestService extends ChangeNotifier {
       });
     }
 
-    try {
-      return _firestore
-          .collection('serviceRequests')
-          .where('raisedBy', isEqualTo: nurseUserId)
-          .orderBy('raisedAt', descending: true)
-          .snapshots()
-          .map((snap) {
-        if (snap.docs.isEmpty) {
-          return _mockRequests.where((r) => r.raisedBy == nurseUserId).toList();
-        }
-        return snap.docs.map((doc) => ServiceRequestModel.fromFirestore(doc)).toList();
-      });
-    } catch (e) {
-      debugPrint('[ServiceRequestService] streamNurseRequests error: $e');
-      return _requestsStreamController.stream.map((list) {
-        return list.where((r) => r.raisedBy == nurseUserId).toList();
-      });
-    }
+    return _firestore
+        .collection('serviceRequests')
+        .where('raisedBy', isEqualTo: nurseUserId)
+        .orderBy('raisedAt', descending: true)
+        .snapshots()
+        .map((snap) {
+      return snap.docs.map((doc) => ServiceRequestModel.fromFirestore(doc)).toList();
+    });
   }
 
-  /// Stream all OPEN requests for Admin dashboard/resolution
   Stream<List<ServiceRequestModel>> streamOpenRequests() {
     if (FirebaseService.isMockFallback) {
       return _getMockStream().map((list) {
@@ -86,48 +50,30 @@ class ServiceRequestService extends ChangeNotifier {
       });
     }
 
-    try {
-      return _firestore
-          .collection('serviceRequests')
-          .where('status', isEqualTo: 'open')
-          .orderBy('raisedAt', descending: true)
-          .snapshots()
-          .map((snap) {
-        if (snap.docs.isEmpty) {
-          return _mockRequests.where((r) => r.isOpen).toList();
-        }
-        return snap.docs.map((doc) => ServiceRequestModel.fromFirestore(doc)).toList();
-      });
-    } catch (e) {
-      debugPrint('[ServiceRequestService] streamOpenRequests error: $e');
-      return _getMockStream().map((list) {
-        return list.where((r) => r.isOpen).toList();
-      });
-    }
+    return _firestore
+        .collection('serviceRequests')
+        .where('status', isEqualTo: 'open')
+        .orderBy('raisedAt', descending: true)
+        .snapshots()
+        .map((snap) {
+      return snap.docs.map((doc) => ServiceRequestModel.fromFirestore(doc)).toList();
+    });
   }
 
-  /// Stream all requests (both open & resolved) for history review
   Stream<List<ServiceRequestModel>> streamAllRequests() {
     if (FirebaseService.isMockFallback) {
       return _getMockStream();
     }
 
-    try {
-      return _firestore
-          .collection('serviceRequests')
-          .orderBy('raisedAt', descending: true)
-          .snapshots()
-          .map((snap) {
-        if (snap.docs.isEmpty) return _mockRequests;
-        return snap.docs.map((doc) => ServiceRequestModel.fromFirestore(doc)).toList();
-      });
-    } catch (e) {
-      debugPrint('[ServiceRequestService] streamAllRequests error: $e');
-      return _requestsStreamController.stream;
-    }
+    return _firestore
+        .collection('serviceRequests')
+        .orderBy('raisedAt', descending: true)
+        .snapshots()
+        .map((snap) {
+      return snap.docs.map((doc) => ServiceRequestModel.fromFirestore(doc)).toList();
+    });
   }
 
-  /// Nurse submits a new issue/request
   Future<void> submitRequest({
     required String raisedBy,
     String? raisedByName,
@@ -156,19 +102,10 @@ class ServiceRequestService extends ChangeNotifier {
       return;
     }
 
-    try {
-      await _firestore.collection('serviceRequests').doc(requestId).set(newReq.toMap());
-    } catch (e) {
-      debugPrint('[ServiceRequestService] submitRequest error: $e');
-      _mockRequests.insert(0, newReq);
-      _requestsStreamController.add(List.unmodifiable(_mockRequests));
-    }
+    await _firestore.collection('serviceRequests').doc(requestId).set(newReq.toMap());
     notifyListeners();
   }
 
-  /// Admin resolves request. Per specs:
-  /// - Admin marks resolved, which makes it disappear from the open requests queue
-  /// - Admin CANNOT edit or delete the nurse's issue text
   Future<void> resolveRequest({
     required String requestId,
     required String resolvedBy,
@@ -189,24 +126,11 @@ class ServiceRequestService extends ChangeNotifier {
       return;
     }
 
-    try {
-      await _firestore.collection('serviceRequests').doc(requestId).update({
-        'status': 'resolved',
-        'resolvedAt': Timestamp.fromDate(now),
-        'resolvedBy': resolvedBy,
-      });
-    } catch (e) {
-      debugPrint('[ServiceRequestService] resolveRequest error: $e');
-      final index = _mockRequests.indexWhere((r) => r.requestId == requestId);
-      if (index != -1) {
-        _mockRequests[index] = _mockRequests[index].copyWith(
-          status: 'resolved',
-          resolvedAt: now,
-          resolvedBy: resolvedBy,
-        );
-        _requestsStreamController.add(List.unmodifiable(_mockRequests));
-      }
-    }
+    await _firestore.collection('serviceRequests').doc(requestId).update({
+      'status': 'resolved',
+      'resolvedAt': Timestamp.fromDate(now),
+      'resolvedBy': resolvedBy,
+    });
     notifyListeners();
   }
 

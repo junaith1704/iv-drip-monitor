@@ -55,8 +55,6 @@ void main() {
       // Verify that key elements are rendered properly
       expect(find.text('Hospital Clinical Staff & Nurse Registry'), findsOneWidget);
       expect(find.byType(UserOverviewScreen), findsOneWidget);
-      expect(find.text('Nurse Sarah Jenkins, RN'), findsOneWidget);
-      expect(find.text('Dr. Robert Vance (Clinical Admin)'), findsOneWidget);
     });
   }
 }

@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
+import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 
 class NotificationPayload {
   final String deviceId;
@@ -24,14 +25,18 @@ class NotificationService extends ChangeNotifier {
   NotificationService._internal();
 
   FirebaseMessaging get _fcm => FirebaseMessaging.instance;
+  final FlutterLocalNotificationsPlugin _localNotifications = FlutterLocalNotificationsPlugin();
   final StreamController<NotificationPayload> _notificationStream =
       StreamController<NotificationPayload>.broadcast();
 
   Stream<NotificationPayload> get onNotificationTapped => _notificationStream.stream;
 
   Future<void> initialize() async {
+    if (kIsWeb) {
+      debugPrint('[NotificationService] Skipping FCM setup on web');
+      return;
+    }
     try {
-      // Request notification permissions
       final settings = await _fcm.requestPermission(
         alert: true,
         announcement: true,
@@ -41,11 +46,55 @@ class NotificationService extends ChangeNotifier {
 
       debugPrint('[NotificationService] Permission status: ${settings.authorizationStatus}');
 
-      // Subscribe to nurses topic per specification
+      const androidInit = AndroidInitializationSettings('@mipmap/ic_launcher');
+      const initSettings = InitializationSettings(android: androidInit);
+      await _localNotifications.initialize(
+        initSettings,
+        onDidReceiveNotificationResponse: (NotificationResponse response) {
+          final raw = response.payload;
+          if (raw != null && raw.contains('|')) {
+            final parts = raw.split('|');
+            _notificationStream.add(
+              NotificationPayload(
+                deviceId: parts[0],
+                deviceName: parts[1],
+                tripId: parts.length > 2 && parts[2].isNotEmpty ? parts[2] : null,
+                title: 'URGENT: IV Flow Stoppage',
+                body: 'Device ${parts[1]} (${parts[0]}) is stuck.',
+              ),
+            );
+          }
+        },
+      );
+
+      const legacyChannel = AndroidNotificationChannel(
+        'iv_stall_alarm_channel',
+        'IV Stall Alarms',
+        description: 'High priority alarms for IV flow stall',
+        importance: Importance.max,
+        playSound: true,
+        enableVibration: true,
+      );
+
+      final stuckChannel = AndroidNotificationChannel(
+        'stuck_alarm',
+        'Stuck Alarms',
+        description: 'Critical alarms for stuck IV drip devices',
+        importance: Importance.max,
+        playSound: true,
+        enableVibration: true,
+        vibrationPattern: Int64List.fromList([0, 1000, 500, 1000, 500, 1000]),
+        audioAttributesUsage: AudioAttributesUsage.alarm,
+      );
+
+      final androidPlugin = _localNotifications
+          .resolvePlatformSpecificImplementation<AndroidFlutterLocalNotificationsPlugin>();
+      await androidPlugin?.createNotificationChannel(legacyChannel);
+      await androidPlugin?.createNotificationChannel(stuckChannel);
+
       await _fcm.subscribeToTopic('nurses');
       debugPrint('[NotificationService] Subscribed to topic "nurses"');
 
-      // Listen to foreground messages
       FirebaseMessaging.onMessage.listen((RemoteMessage message) {
         debugPrint('[NotificationService] Foreground message received: ${message.data}');
         final payload = _parseMessage(message);
@@ -54,7 +103,6 @@ class NotificationService extends ChangeNotifier {
         }
       });
 
-      // Handle message opened from background
       FirebaseMessaging.onMessageOpenedApp.listen((RemoteMessage message) {
         debugPrint('[NotificationService] Notification clicked from background: ${message.data}');
         final payload = _parseMessage(message);
@@ -63,7 +111,6 @@ class NotificationService extends ChangeNotifier {
         }
       });
 
-      // Check initial message if app launched via notification
       final initialMessage = await _fcm.getInitialMessage();
       if (initialMessage != null) {
         final payload = _parseMessage(initialMessage);
@@ -71,9 +118,87 @@ class NotificationService extends ChangeNotifier {
           _notificationStream.add(payload);
         }
       }
+
+      final launchDetails = await _localNotifications.getNotificationAppLaunchDetails();
+      if (launchDetails != null && launchDetails.didNotificationLaunchApp) {
+        final raw = launchDetails.notificationResponse?.payload;
+        if (raw != null && raw.contains('|')) {
+          final parts = raw.split('|');
+          _notificationStream.add(
+            NotificationPayload(
+              deviceId: parts[0],
+              deviceName: parts[1],
+              tripId: parts.length > 2 && parts[2].isNotEmpty ? parts[2] : null,
+              title: 'URGENT: IV Flow Stoppage',
+              body: 'Device ${parts[1]} (${parts[0]}) is stuck.',
+            ),
+          );
+        }
+      }
     } catch (e) {
-      debugPrint('[NotificationService] Initialization error (safe fallback enabled): $e');
+      debugPrint('[NotificationService] Initialization error: $e');
     }
+  }
+
+  int getNotificationId(String deviceId) => deviceId.hashCode & 0x7FFFFFFF;
+
+  Future<void> showStuckNotification({
+    required String deviceId,
+    required String deviceName,
+    String? tripId,
+  }) async {
+    if (kIsWeb) return;
+    final int id = getNotificationId(deviceId);
+    final androidDetails = AndroidNotificationDetails(
+      'stuck_alarm',
+      'Stuck Alarms',
+      channelDescription: 'Critical alarms for stuck IV drip devices',
+      importance: Importance.max,
+      priority: Priority.high,
+      playSound: true,
+      audioAttributesUsage: AudioAttributesUsage.alarm,
+      enableVibration: true,
+      vibrationPattern: Int64List.fromList([0, 1000, 500, 1000, 500, 1000]),
+      category: AndroidNotificationCategory.alarm,
+      additionalFlags: Int32List.fromList([4]),
+      ongoing: true,
+      autoCancel: false,
+      fullScreenIntent: true,
+    );
+    final details = NotificationDetails(android: androidDetails);
+    await _localNotifications.show(
+      id,
+      'URGENT: IV Flow Stoppage',
+      'Device $deviceName ($deviceId) is stuck.',
+      details,
+      payload: '$deviceId|$deviceName|${tripId ?? ''}',
+    );
+  }
+
+  Future<void> cancelStuckNotification(String deviceId) async {
+    if (kIsWeb) return;
+    final int id = getNotificationId(deviceId);
+    await _localNotifications.cancel(id);
+  }
+
+  Future<void> showStallAlarm(String deviceName) async {
+    if (kIsWeb) return;
+    const androidDetails = AndroidNotificationDetails(
+      'iv_stall_alarm_channel',
+      'IV Stall Alarms',
+      channelDescription: 'High priority alarms for IV flow stall',
+      importance: Importance.max,
+      priority: Priority.high,
+      playSound: true,
+      enableVibration: true,
+    );
+    const details = NotificationDetails(android: androidDetails);
+    await _localNotifications.show(
+      DateTime.now().millisecondsSinceEpoch ~/ 1000,
+      'URGENT: IV Drop Stoppage',
+      'Flow stoppage detected on $deviceName',
+      details,
+    );
   }
 
   NotificationPayload? _parseMessage(RemoteMessage message) {
@@ -93,7 +218,6 @@ class NotificationService extends ChangeNotifier {
     );
   }
 
-  /// Trigger a simulated FCM alarm broadcast for testing on physical devices or web
   void triggerSimulatedAlarm({
     required String deviceId,
     required String deviceName,

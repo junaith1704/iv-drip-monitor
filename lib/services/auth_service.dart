@@ -3,7 +3,6 @@ import 'package:flutter/foundation.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../models/user_model.dart';
-import 'firebase_service.dart';
 
 class AuthService extends ChangeNotifier {
   FirebaseAuth get _auth => FirebaseAuth.instance;
@@ -18,43 +17,11 @@ class AuthService extends ChangeNotifier {
   bool get isAdmin => _currentUser?.isAdmin ?? false;
   bool get isNurse => _currentUser?.isNurse ?? false;
 
-  // Mock users for offline fallback or instant testing
-  static final List<UserModel> mockUsers = [
-    UserModel(
-      userId: 'nurse_sarah_01',
-      name: 'Nurse Sarah Jenkins, RN',
-      email: 'nurse@hospital.org',
-      role: 'nurse',
-      createdAt: DateTime.now().subtract(const Duration(days: 90)),
-    ),
-    UserModel(
-      userId: 'nurse_david_02',
-      name: 'Nurse David Chen, BSN',
-      email: 'nurse2@hospital.org',
-      role: 'nurse',
-      createdAt: DateTime.now().subtract(const Duration(days: 45)),
-    ),
-    UserModel(
-      userId: 'admin_dr_vance_01',
-      name: 'Dr. Robert Vance (Clinical Admin)',
-      email: 'admin@hospital.org',
-      role: 'admin',
-      createdAt: DateTime.now().subtract(const Duration(days: 180)),
-    ),
-  ];
-
   AuthService() {
     _initAuthListener();
   }
 
   void _initAuthListener() {
-    if (FirebaseService.isMockFallback) {
-      // Default to Nurse Sarah for seamless immediate testing
-      _currentUser = mockUsers.first;
-      notifyListeners();
-      return;
-    }
-
     try {
       _auth.authStateChanges().listen((User? user) async {
         if (user == null) {
@@ -66,7 +33,7 @@ class AuthService extends ChangeNotifier {
       });
     } catch (e) {
       debugPrint('[AuthService] authStateChanges error: $e');
-      _currentUser = mockUsers.first;
+      _currentUser = null;
       notifyListeners();
     }
   }
@@ -77,26 +44,12 @@ class AuthService extends ChangeNotifier {
       if (doc.exists) {
         _currentUser = UserModel.fromFirestore(doc);
       } else {
-        // Fallback user profile if not yet created in Firestore
-        final newUser = UserModel(
-          userId: uid,
-          name: email.split('@').first.toUpperCase(),
-          email: email,
-          role: email.contains('admin') ? 'admin' : 'nurse',
-          createdAt: DateTime.now(),
-        );
-        await _firestore.collection('users').doc(uid).set(newUser.toMap());
-        _currentUser = newUser;
+        _currentUser = null;
       }
       notifyListeners();
     } catch (e) {
       debugPrint('[AuthService] _loadUserProfile error: $e');
-      _currentUser = UserModel(
-        userId: uid,
-        name: email.split('@').first,
-        email: email,
-        role: email.contains('admin') ? 'admin' : 'nurse',
-      );
+      _currentUser = null;
       notifyListeners();
     }
   }
@@ -106,30 +59,18 @@ class AuthService extends ChangeNotifier {
     notifyListeners();
 
     try {
-      if (FirebaseService.isMockFallback) {
-        await Future.delayed(const Duration(milliseconds: 350));
-        final cleanEmail = email.trim().toLowerCase();
-        final match = mockUsers.firstWhere(
-          (u) => u.email.toLowerCase() == cleanEmail,
-          orElse: () => UserModel(
-            userId: 'user_${DateTime.now().millisecondsSinceEpoch}',
-            name: email.split('@').first,
-            email: email,
-            role: email.contains('admin') ? 'admin' : 'nurse',
-          ),
-        );
-        _currentUser = match;
-        _isLoading = false;
-        notifyListeners();
-        return null;
-      }
-
       final cred = await _auth.signInWithEmailAndPassword(
         email: email.trim(),
         password: password,
       );
       if (cred.user != null) {
         await _loadUserProfile(cred.user!.uid, cred.user!.email ?? email);
+        if (_currentUser == null) {
+          await _auth.signOut();
+          _isLoading = false;
+          notifyListeners();
+          return 'Account profile not found. Contact the admin.';
+        }
       }
       _isLoading = false;
       notifyListeners();
@@ -139,34 +80,15 @@ class AuthService extends ChangeNotifier {
       notifyListeners();
       return e.message ?? 'Authentication failed (${e.code})';
     } catch (e) {
-      // In case network error or unconfigured project, allow seamless mock login if credentials match demo
-      final cleanEmail = email.trim().toLowerCase();
-      final match = mockUsers.firstWhere(
-        (u) => u.email.toLowerCase() == cleanEmail,
-        orElse: () => UserModel(
-          userId: 'user_${DateTime.now().millisecondsSinceEpoch}',
-          name: email.split('@').first,
-          email: email,
-          role: email.contains('admin') ? 'admin' : 'nurse',
-        ),
-      );
-      _currentUser = match;
       _isLoading = false;
       notifyListeners();
-      return null;
+      return 'Authentication failed: $e';
     }
-  }
-
-  Future<void> switchDemoUser(UserModel user) async {
-    _currentUser = user;
-    notifyListeners();
   }
 
   Future<void> signOut() async {
     try {
-      if (!FirebaseService.isMockFallback) {
-        await _auth.signOut();
-      }
+      await _auth.signOut();
     } catch (e) {
       debugPrint('[AuthService] signOut error: $e');
     }
@@ -174,16 +96,95 @@ class AuthService extends ChangeNotifier {
     notifyListeners();
   }
 
-  Future<List<UserModel>> getAllUsers() async {
-    if (FirebaseService.isMockFallback) {
-      return List.unmodifiable(mockUsers);
+      Future<bool> checkFirstTimeSetup(String email) async {
+    try {
+      final doc = await _firestore
+          .collection('pendingUsers')
+          .doc(email.trim().toLowerCase())
+          .get();
+      return doc.exists;
+    } catch (e) {
+      debugPrint('[AuthService] checkFirstTimeSetup error: $e');
+      return false;
     }
+  }
+
+  Future<String?> addPendingNurse({required String name, required String email}) async {
+    final cleanEmail = email.trim().toLowerCase();
+    try {
+      final existing = await _firestore
+          .collection('users')
+          .where('email', isEqualTo: cleanEmail)
+          .limit(1)
+          .get();
+      if (existing.docs.isNotEmpty) return 'This email already has an account';
+      await _firestore.collection('pendingUsers').doc(cleanEmail).set({
+        'name': name.trim(),
+        'email': cleanEmail,
+        'role': 'nurse',
+        'createdAt': FieldValue.serverTimestamp(),
+      });
+      return null;
+    } catch (e) {
+      return 'Could not add nurse: $e';
+    }
+  }
+
+  Future<String?> completeFirstTimeSetup(String email, String password) async {
+    _isLoading = true;
+    notifyListeners();
+    try {
+      final cleanEmail = email.trim().toLowerCase();
+      final pendingRef = _firestore.collection('pendingUsers').doc(cleanEmail);
+      final pendingDoc = await pendingRef.get();
+
+      if (!pendingDoc.exists) {
+        _isLoading = false;
+        notifyListeners();
+        return 'No pending account found for this email';
+      }
+
+      final data = pendingDoc.data() ?? {};
+
+      final cred = await _auth.createUserWithEmailAndPassword(
+        email: cleanEmail,
+        password: password,
+      );
+
+      final uid = cred.user!.uid;
+
+      await _firestore.collection('users').doc(uid).set({
+        'userId': uid,
+        'name': data['name'] ?? 'Healthcare Staff',
+        'email': cleanEmail,
+        'role': data['role'] ?? 'nurse',
+        'createdAt': FieldValue.serverTimestamp(),
+      });
+
+      await pendingRef.delete();
+      await _loadUserProfile(uid, cleanEmail);
+
+      _isLoading = false;
+      notifyListeners();
+      return null;
+    } on FirebaseAuthException catch (e) {
+      _isLoading = false;
+      notifyListeners();
+      return e.message ?? 'Account setup failed (${e.code})';
+    } catch (e) {
+      _isLoading = false;
+      notifyListeners();
+      return 'Account setup failed: $e';
+    }
+  }
+
+
+  Future<List<UserModel>> getAllUsers() async {
     try {
       final snap = await _firestore.collection('users').get();
-      if (snap.docs.isEmpty) return mockUsers;
       return snap.docs.map((doc) => UserModel.fromFirestore(doc)).toList();
     } catch (e) {
-      return mockUsers;
+      return [];
     }
   }
 }

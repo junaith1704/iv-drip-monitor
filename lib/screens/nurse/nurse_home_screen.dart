@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../services/device_service.dart';
+import '../../services/firebase_service.dart';
 import '../../services/trip_service.dart';
 import '../../models/device_model.dart';
 import '../../models/trip_model.dart';
@@ -188,7 +189,9 @@ class _NurseHomeScreenState extends State<NurseHomeScreen> {
                             const Icon(Icons.sensors_off, size: 36, color: ClinicalTheme.textMuted),
                             const SizedBox(height: 8),
                             Text(
-                              'No devices matching filter "$_statusFilter"',
+                              FirebaseService.isMockFallback
+                                  ? 'Cannot connect to the database'
+                                  : 'No devices matching filter "$_statusFilter"',
                               style: const TextStyle(color: ClinicalTheme.textSecondary, fontSize: 13),
                             ),
                           ],

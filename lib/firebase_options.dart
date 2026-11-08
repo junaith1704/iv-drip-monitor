@@ -31,46 +31,44 @@ class DefaultFirebaseOptions {
   }
 
   static const FirebaseOptions web = FirebaseOptions(
-    apiKey: 'AIzaSyA_placeholder_iv_drip_monitor_web_key',
-    appId: '1:123456789012:web:abcdef1234567890',
-    messagingSenderId: '123456789012',
-    projectId: 'iv-drip-monitor',
-    authDomain: 'iv-drip-monitor.firebaseapp.com',
-    storageBucket: 'iv-drip-monitor.appspot.com',
+    apiKey: 'AIzaSyDdSvm_K4bv51LEY3ncVgOMwDDs_Pr1HK0',
+    appId: '1:683792963487:web:447b8aab92ba386a140faa',
+    messagingSenderId: '683792963487',
+    projectId: 'iv-drip-monitor-49391',
+    authDomain: 'iv-drip-monitor-49391.firebaseapp.com',
+    storageBucket: 'iv-drip-monitor-49391.firebasestorage.app',
   );
 
   static const FirebaseOptions android = FirebaseOptions(
-    apiKey: 'AIzaSyA_placeholder_iv_drip_monitor_android_key',
-    appId: '1:123456789012:android:abcdef1234567890',
-    messagingSenderId: '123456789012',
-    projectId: 'iv-drip-monitor',
-    storageBucket: 'iv-drip-monitor.appspot.com',
+    apiKey: 'AIzaSyAEhsHMVwABCkmXVGVeboQQ6F8yDz-rCK0',
+    appId: '1:683792963487:android:212e2a40cface2b6140faa',
+    messagingSenderId: '683792963487',
+    projectId: 'iv-drip-monitor-49391',
+    storageBucket: 'iv-drip-monitor-49391.firebasestorage.app',
   );
-
   static const FirebaseOptions ios = FirebaseOptions(
-    apiKey: 'AIzaSyA_placeholder_iv_drip_monitor_ios_key',
-    appId: '1:123456789012:ios:abcdef1234567890',
-    messagingSenderId: '123456789012',
-    projectId: 'iv-drip-monitor',
-    storageBucket: 'iv-drip-monitor.appspot.com',
+    apiKey: 'AIzaSyBJf8K22qxUM_2grlAFZif_66bGTsz8wvk',
+    appId: '1:683792963487:ios:e0699540a8c70e0d140faa',
+    messagingSenderId: '683792963487',
+    projectId: 'iv-drip-monitor-49391',
+    storageBucket: 'iv-drip-monitor-49391.firebasestorage.app',
     iosBundleId: 'com.hospital.ivdrip.ivDripMonitor',
   );
-
   static const FirebaseOptions macos = FirebaseOptions(
-    apiKey: 'AIzaSyA_placeholder_iv_drip_monitor_macos_key',
-    appId: '1:123456789012:ios:abcdef1234567890',
-    messagingSenderId: '123456789012',
-    projectId: 'iv-drip-monitor',
-    storageBucket: 'iv-drip-monitor.appspot.com',
+    apiKey: 'AIzaSyBJf8K22qxUM_2grlAFZif_66bGTsz8wvk',
+    appId: '1:683792963487:ios:e0699540a8c70e0d140faa',
+    messagingSenderId: '683792963487',
+    projectId: 'iv-drip-monitor-49391',
+    storageBucket: 'iv-drip-monitor-49391.firebasestorage.app',
     iosBundleId: 'com.hospital.ivdrip.ivDripMonitor',
   );
 
   static const FirebaseOptions windows = FirebaseOptions(
-    apiKey: 'AIzaSyA_placeholder_iv_drip_monitor_win_key',
-    appId: '1:123456789012:web:abcdef1234567890',
-    messagingSenderId: '123456789012',
-    projectId: 'iv-drip-monitor',
-    authDomain: 'iv-drip-monitor.firebaseapp.com',
-    storageBucket: 'iv-drip-monitor.appspot.com',
+    apiKey: 'AIzaSyDdSvm_K4bv51LEY3ncVgOMwDDs_Pr1HK0',
+    appId: '1:683792963487:web:45fa7f0ba683ca53140faa',
+    messagingSenderId: '683792963487',
+    projectId: 'iv-drip-monitor-49391',
+    authDomain: 'iv-drip-monitor-49391.firebaseapp.com',
+    storageBucket: 'iv-drip-monitor-49391.firebasestorage.app',
   );
 }

@@ -4,6 +4,7 @@ import '../theme/clinical_theme.dart';
 import '../models/device_model.dart';
 import '../models/trip_model.dart';
 import 'status_badge.dart';
+import 'connection_badge.dart';
 
 class DeviceCard extends StatelessWidget {
   final DeviceModel device;
@@ -106,7 +107,32 @@ class DeviceCard extends StatelessWidget {
                     ],
                   ),
                 ),
-                StatusBadge(status: device.status),
+                Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    if (device.isLowBattery)
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                        margin: const EdgeInsets.only(right: 6),
+                        decoration: BoxDecoration(
+                          color: ClinicalTheme.statusAlarm.withOpacity(0.12),
+                          borderRadius: BorderRadius.circular(4),
+                          border: Border.all(color: ClinicalTheme.statusAlarm.withOpacity(0.4)),
+                        ),
+                        child: Text(
+                          'Low Batt (${device.battery}%)',
+                          style: const TextStyle(
+                            fontSize: 10,
+                            fontWeight: FontWeight.bold,
+                            color: ClinicalTheme.statusAlarm,
+                          ),
+                        ),
+                      ),
+                    StatusBadge(status: device.status),
+                    const SizedBox(width: 6),
+                    ConnectionBadge(device: device),
+                  ],
+                ),
               ],
             ),
           ),
@@ -117,6 +143,49 @@ class DeviceCard extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
+                Container(
+                  margin: const EdgeInsets.only(bottom: 12),
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                  decoration: BoxDecoration(
+                    color: ClinicalTheme.background,
+                    borderRadius: BorderRadius.circular(6),
+                    border: Border.all(color: ClinicalTheme.borderSubtle),
+                  ),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceAround,
+                    children: [
+                      Column(
+                        children: [
+                          const Text('SPEED', style: TextStyle(fontSize: 10, fontWeight: FontWeight.w700, color: ClinicalTheme.textMuted)),
+                          const SizedBox(height: 2),
+                          Text(device.speed ?? '--', style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: ClinicalTheme.textPrimary)),
+                        ],
+                      ),
+                      Column(
+                        children: [
+                          const Text('DPM', style: TextStyle(fontSize: 10, fontWeight: FontWeight.w700, color: ClinicalTheme.textMuted)),
+                          const SizedBox(height: 2),
+                          Text(device.dpm != null ? device.dpm!.toStringAsFixed(1) : '--', style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: ClinicalTheme.textPrimary)),
+                        ],
+                      ),
+                     
+                      Column(
+                        children: [
+                          const Text('BATTERY', style: TextStyle(fontSize: 10, fontWeight: FontWeight.w700, color: ClinicalTheme.textMuted)),
+                          const SizedBox(height: 2),
+                          Text(
+                            (device.battery != null && device.battery! > 0) ? '${device.battery}%' : 'No sensor',
+                            style: TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w700,
+                              color: device.isLowBattery ? ClinicalTheme.statusAlarm : ClinicalTheme.textPrimary,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
                 if (activeTrip != null) ...[
                   // Patient Info
                   Row(

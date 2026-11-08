@@ -2,10 +2,12 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:intl/intl.dart';
 import '../../services/trip_service.dart';
+import '../../services/firebase_service.dart';
 import '../../services/device_service.dart';
 import '../../models/trip_model.dart';
 import '../../models/device_model.dart';
 import '../../theme/clinical_theme.dart';
+import '../../services/export_service.dart';
 
 class TripHistoryScreen extends StatefulWidget {
   const TripHistoryScreen({super.key});
@@ -30,11 +32,17 @@ class _TripHistoryScreenState extends State<TripHistoryScreen> {
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: Row(
+        title: const Row(
           children: [
-            const Icon(Icons.receipt_long_rounded, color: ClinicalTheme.primaryBlue),
-            const SizedBox(width: 8),
-            const Text('Completed Infusion Audit Record'),
+            Icon(Icons.receipt_long_rounded, color: ClinicalTheme.primaryBlue),
+            SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                'Completed Infusion Audit Record',
+                overflow: TextOverflow.ellipsis,
+                maxLines: 1,
+              ),
+            ),
           ],
         ),
         content: SizedBox(
@@ -137,6 +145,26 @@ class _TripHistoryScreenState extends State<TripHistoryScreen> {
         ],
       ),
     );
+  }
+
+    Future<void> _export(List<IvTripModel> trips, String format) async {
+    final messenger = ScaffoldMessenger.of(context);
+    if (trips.isEmpty) {
+      messenger.showSnackBar(
+        const SnackBar(content: Text('No records to export for the current filters.')),
+      );
+      return;
+    }
+    final label = _selectedDeviceId ?? 'All_Devices';
+    try {
+      if (format == 'excel') {
+        await ExportService.exportExcel(trips, label: label);
+      } else {
+        await ExportService.exportPdf(trips, label: label);
+      }
+    } catch (e) {
+      messenger.showSnackBar(SnackBar(content: Text('Export failed: $e')));
+    }
   }
 
   @override
@@ -303,12 +331,39 @@ class _TripHistoryScreenState extends State<TripHistoryScreen> {
               const SizedBox(height: 20),
 
               // Records Table Header
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            Row(
                 children: [
-                  Text(
-                    'Archived Infusion Records (${filtered.length})',
-                    style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700, color: ClinicalTheme.textPrimary),
+                  Expanded(
+                    child: Text(
+                      'Archived Infusion Records (${filtered.length})',
+                      style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700, color: ClinicalTheme.textPrimary),
+                    ),
+                  ),
+                  PopupMenuButton<String>(
+                    tooltip: 'Download records',
+                    onSelected: (value) => _export(filtered, value),
+                    itemBuilder: (context) => const [
+                      PopupMenuItem(value: 'excel', child: Text('Download as Excel')),
+                      PopupMenuItem(value: 'pdf', child: Text('Download as PDF')),
+                    ],
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                      decoration: BoxDecoration(
+                        color: ClinicalTheme.primaryBlue,
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: const Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(Icons.download_rounded, size: 18, color: Colors.white),
+                          SizedBox(width: 6),
+                          Text(
+                            'DOWNLOAD',
+                            style: TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w700),
+                          ),
+                        ],
+                      ),
+                    ),
                   ),
                 ],
               ),
@@ -324,7 +379,11 @@ class _TripHistoryScreenState extends State<TripHistoryScreen> {
                     borderRadius: BorderRadius.circular(8),
                     border: Border.all(color: ClinicalTheme.borderSubtle),
                   ),
-                  child: const Text('No finalized infusion records matching current filters.'),
+                  child: Text(
+                    FirebaseService.isMockFallback
+                        ? 'Cannot connect to the database'
+                        : 'No finalized infusion records matching current filters.',
+                  ),
                 )
               else
                 ...filtered.map((trip) {

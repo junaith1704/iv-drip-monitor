@@ -46,3 +46,10 @@ app.*.map.json
 
 # Widget Preview related
 .widget_preview/
+
+.firebase/
+.claude/
+.agents/
+skills-lock.json
+analyze.txt
+analyze_out.txt
