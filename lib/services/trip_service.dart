@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:uuid/uuid.dart';
 import '../models/trip_model.dart';
 import 'device_service.dart';
@@ -21,9 +22,40 @@ class TripService extends ChangeNotifier {
   final StreamController<List<IvTripModel>> _completedTripsController =
       StreamController<List<IvTripModel>>.broadcast();
 
+  StreamSubscription? _authSub;
+  StreamSubscription? _activeTripsSub;
+  bool _hasActiveTrip = false;
+  bool get hasActiveTrip => _hasActiveTrip;
+
   TripService({required this.deviceService}) {
     _activeTripsController.add(List.unmodifiable(_mockActiveTrips));
     _completedTripsController.add(List.unmodifiable(_mockCompletedTrips));
+    if (!FirebaseService.isMockFallback) {
+      _authSub = FirebaseAuth.instance.authStateChanges().listen((User? user) {
+        if (user != null) {
+          _activeTripsSub?.cancel();
+          _activeTripsSub = _firestore.collection('activeTrips').snapshots().listen((snapshot) {
+            final newVal = snapshot.docs.isNotEmpty;
+            if (_hasActiveTrip != newVal) {
+              _hasActiveTrip = newVal;
+              notifyListeners();
+            }
+          }, onError: (_) {
+            if (_hasActiveTrip != false) {
+              _hasActiveTrip = false;
+              notifyListeners();
+            }
+          });
+        } else {
+          _activeTripsSub?.cancel();
+          _activeTripsSub = null;
+          if (_hasActiveTrip != false) {
+            _hasActiveTrip = false;
+            notifyListeners();
+          }
+        }
+      });
+    }
   }
 
   Stream<List<ActiveTripModel>> streamActiveTrips() {
@@ -109,7 +141,10 @@ class TripService extends ChangeNotifier {
     return tripId;
   }
 
-  Future<void> simulateDropStop({required String deviceId}) async {
+  Future<void> simulateDropStop({
+    required String deviceId,
+    String alarmReason = 'flow_stopped',
+  }) async {
     final trip = await getActiveTripForDevice(deviceId);
     if (trip == null) return;
 
@@ -126,7 +161,12 @@ class TripService extends ChangeNotifier {
         );
         _activeTripsController.add(List.unmodifiable(_mockActiveTrips));
       }
-      await deviceService.updateDeviceStatus(deviceId, 'stuck', activeTripId: trip.tripId);
+      await deviceService.updateDeviceStatus(
+        deviceId,
+        'stuck',
+        activeTripId: trip.tripId,
+        alarmReason: alarmReason,
+      );
       notifyListeners();
       return;
     }
@@ -135,7 +175,12 @@ class TripService extends ChangeNotifier {
       'status': 'stuck',
       'stoppedEvents': updatedEvents.map((e) => e.toMap()).toList(),
     });
-    await deviceService.updateDeviceStatus(deviceId, 'stuck', activeTripId: trip.tripId);
+    await deviceService.updateDeviceStatus(
+      deviceId,
+      'stuck',
+      activeTripId: trip.tripId,
+      alarmReason: alarmReason,
+    );
     notifyListeners();
   }
 
@@ -271,6 +316,8 @@ class TripService extends ChangeNotifier {
 
   @override
   void dispose() {
+    _authSub?.cancel();
+    _activeTripsSub?.cancel();
     _activeTripsController.close();
     _completedTripsController.close();
     super.dispose();

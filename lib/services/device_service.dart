@@ -190,7 +190,12 @@ class DeviceService extends ChangeNotifier {
     await _firestore.collection('devices').doc(deviceId).delete();
   }
 
-  Future<void> updateDeviceStatus(String deviceId, String status, {String? activeTripId}) async {
+  Future<void> updateDeviceStatus(
+    String deviceId,
+    String status, {
+    String? activeTripId,
+    String? alarmReason,
+  }) async {
     final now = DateTime.now();
 
     if (FirebaseService.isMockFallback) {
@@ -201,6 +206,8 @@ class DeviceService extends ChangeNotifier {
           status: status,
           activeTripId: activeTripId,
           clearActiveTrip: status == 'idle' || activeTripId == null,
+          alarmReason: alarmReason,
+          clearAlarmReason: status == 'running' || status == 'idle',
           lastUpdated: now,
         );
         _mockStreamController.add(List.unmodifiable(_mockDevices));
@@ -217,6 +224,11 @@ class DeviceService extends ChangeNotifier {
       updates['activeTripId'] = activeTripId;
     } else if (status == 'idle') {
       updates['activeTripId'] = null;
+    }
+    if (alarmReason != null) {
+      updates['alarmReason'] = alarmReason;
+    } else if (status == 'running' || status == 'idle') {
+      updates['alarmReason'] = FieldValue.delete();
     }
     await _firestore.collection('devices').doc(deviceId).update(updates);
   }

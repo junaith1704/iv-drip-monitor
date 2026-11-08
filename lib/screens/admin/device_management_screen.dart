@@ -1007,20 +1007,24 @@ class _DeviceManagementScreenState extends State<DeviceManagementScreen> {
                                         ),
                                       ),
                                     ),
-                                    const SizedBox(width: 8),
-                                    Container(
-                                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                                      decoration: BoxDecoration(
-                                        color: ClinicalTheme.borderSubtle,
-                                        borderRadius: BorderRadius.circular(4),
-                                      ),
-                                      child: Text(
-                                        device.deviceId,
-                                        style: const TextStyle(
-                                          fontFamily: 'monospace',
-                                          fontSize: 11,
-                                          fontWeight: FontWeight.w600,
-                                          color: ClinicalTheme.textSecondary,
+                                    const SizedBox(width: 6),
+                                    Flexible(
+                                      child: Container(
+                                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                        decoration: BoxDecoration(
+                                          color: ClinicalTheme.borderSubtle,
+                                          borderRadius: BorderRadius.circular(4),
+                                        ),
+                                        child: Text(
+                                          device.deviceId,
+                                          overflow: TextOverflow.ellipsis,
+                                          maxLines: 1,
+                                          style: const TextStyle(
+                                            fontFamily: 'monospace',
+                                            fontSize: 11,
+                                            fontWeight: FontWeight.w600,
+                                            color: ClinicalTheme.textSecondary,
+                                          ),
                                         ),
                                       ),
                                     ),
@@ -1038,7 +1042,7 @@ class _DeviceManagementScreenState extends State<DeviceManagementScreen> {
                                 const SizedBox(height: 6),
                                 Wrap(
                                   spacing: 6,
-                                  runSpacing: 4,
+                                  runSpacing: 6,
                                   crossAxisAlignment: WrapCrossAlignment.center,
                                   children: [
                                     StatusBadge(status: device.status),
@@ -1053,6 +1057,9 @@ class _DeviceManagementScreenState extends State<DeviceManagementScreen> {
                           IconButton(
                             icon: const Icon(Icons.history_edu_rounded, size: 20, color: ClinicalTheme.textSecondary),
                             tooltip: 'View Name & Floor History',
+                            visualDensity: VisualDensity.compact,
+                            padding: EdgeInsets.zero,
+                            constraints: const BoxConstraints(minWidth: 36, minHeight: 36),
                             onPressed: () => _showHistoryDialog(context, device),
                           ),
 
@@ -1060,6 +1067,9 @@ class _DeviceManagementScreenState extends State<DeviceManagementScreen> {
                             message: 'Edit Device Settings',
                             child: IconButton(
                               icon: const Icon(Icons.edit, size: 20, color: ClinicalTheme.deepNavy),
+                              visualDensity: VisualDensity.compact,
+                              padding: EdgeInsets.zero,
+                              constraints: const BoxConstraints(minWidth: 36, minHeight: 36),
                               onPressed: () => _showEditDeviceDialog(context, device),
                             ),
                           ),
@@ -1068,6 +1078,9 @@ class _DeviceManagementScreenState extends State<DeviceManagementScreen> {
                             message: 'Delete Device',
                             child: IconButton(
                               icon: const Icon(Icons.delete_outline, size: 20, color: ClinicalTheme.statusAlarm),
+                              visualDensity: VisualDensity.compact,
+                              padding: EdgeInsets.zero,
+                              constraints: const BoxConstraints(minWidth: 36, minHeight: 36),
                               onPressed: () => _showDeleteDeviceDialog(context, device),
                             ),
                           ),

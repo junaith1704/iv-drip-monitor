@@ -80,6 +80,13 @@ class _IvDripMonitorAppState extends State<IvDripMonitorApp> with WidgetsBinding
     final context = navigatorKey.currentContext;
     if (context != null) {
       try {
+        final bridge = context.read<HardwareBridgeService>();
+        final tripService = context.read<TripService>();
+        if (bridge.isRunning || tripService.hasActiveTrip) {
+          _resetInactivityTimer();
+          return;
+        }
+
         final authService = context.read<AuthService>();
         if (authService.isAuthenticated) {
           GlobalAlarmService.instance.stopListening();
@@ -219,6 +226,7 @@ class _AuthGateState extends State<AuthGate> {
           deviceService: deviceService,
           tripService: tripService,
           navigatorKey: navigatorKey,
+          isBridgeRunning: () => context.read<HardwareBridgeService>().isRunning,
         );
       });
 

@@ -49,6 +49,7 @@ class DeviceModel {
   final bool boardOnline;
   final String? boardIp;
   final DateTime? lastSeen;
+  final String? alarmReason;
 
   DeviceModel({
     required this.deviceId,
@@ -64,6 +65,7 @@ class DeviceModel {
     this.boardOnline = true,
     this.boardIp,
     this.lastSeen,
+    this.alarmReason,
   });
 
   bool get isRunning => status == 'running';
@@ -123,6 +125,7 @@ class DeviceModel {
       boardOnline: parseBool(map['boardOnline'], true),
       boardIp: map['boardIp'] as String?,
       lastSeen: parseDate(map['lastSeen']),
+      alarmReason: map['alarmReason'] as String?,
     );
   }
 
@@ -141,6 +144,7 @@ class DeviceModel {
       'boardOnline': boardOnline,
       if (boardIp != null) 'boardIp': boardIp,
       if (lastSeen != null) 'lastSeen': Timestamp.fromDate(lastSeen!),
+      if (alarmReason != null) 'alarmReason': alarmReason,
     };
   }
 
@@ -160,6 +164,8 @@ class DeviceModel {
     String? boardIp,
     bool clearBoardIp = false,
     DateTime? lastSeen,
+    String? alarmReason,
+    bool clearAlarmReason = false,
   }) {
     return DeviceModel(
       deviceId: deviceId ?? this.deviceId,
@@ -175,6 +181,7 @@ class DeviceModel {
       boardOnline: boardOnline ?? this.boardOnline,
       boardIp: clearBoardIp ? null : (boardIp ?? this.boardIp),
       lastSeen: lastSeen ?? this.lastSeen,
+      alarmReason: clearAlarmReason ? null : (alarmReason ?? this.alarmReason),
     );
   }
 }

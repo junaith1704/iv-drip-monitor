@@ -75,9 +75,15 @@ class GlobalAlarmService {
   bool _isAuthenticated = false;
   bool _isDialogOpen = false;
 
+  bool Function()? _isBridgeRunning;
   List<DeviceModel> _stuckDevices = [];
   final Set<String> _notifiedStuckDeviceIds = <String>{};
   final Map<String, DateTime> _silencedUntil = {};
+  final Map<String, DateTime> _lastSeenValues = {};
+  final Map<String, DateTime> _lastSeenLocalTimes = {};
+  final Set<String> _gatewayLostEpisodeActive = {};
+  final Map<String, DeviceModel> _gatewayLostDevices = {};
+  final Map<String, DeviceModel> _activeTripDevices = {};
   final ValueNotifier<GlobalAlarmPayload?> currentPayload = ValueNotifier<GlobalAlarmPayload?>(null);
 
   bool _isNurse() {
@@ -109,8 +115,10 @@ class GlobalAlarmService {
     required DeviceService deviceService,
     required TripService tripService,
     required GlobalKey<NavigatorState> navigatorKey,
+    bool Function()? isBridgeRunning,
   }) {
     _navigatorKey = navigatorKey;
+    _isBridgeRunning = isBridgeRunning;
     if (_isLoginScreen()) {
       return;
     }
@@ -118,25 +126,29 @@ class GlobalAlarmService {
     _isAuthenticated = true;
     _tripService = tripService;
 
+    _lastSeenValues.clear();
+    _lastSeenLocalTimes.clear();
+    _gatewayLostEpisodeActive.clear();
+    _gatewayLostDevices.clear();
+    _activeTripDevices.clear();
+
     _tickerTimer?.cancel();
     _tickerTimer = Timer.periodic(const Duration(seconds: 1), (_) => _onTick());
 
     _devicesSubscription?.cancel();
     if (FirebaseService.isMockFallback) {
       _devicesSubscription = deviceService.streamDevices().listen((devices) {
-        final stuck = devices.where((d) => d.status == 'stuck').toList();
-        _onStuckDevicesUpdated(stuck);
+        _onDevicesUpdated(devices);
       });
     } else {
       _devicesSubscription = FirebaseFirestore.instance
           .collection('devices')
-          .where('status', isEqualTo: 'stuck')
           .snapshots()
           .listen((snapshot) {
-        final stuck = snapshot.docs.map((d) => DeviceModel.fromFirestore(d)).toList();
-        _onStuckDevicesUpdated(stuck);
+        final devices = snapshot.docs.map((d) => DeviceModel.fromFirestore(d)).toList();
+        _onDevicesUpdated(devices);
       }, onError: (e) {
-        debugPrint('[GlobalAlarmService] Error streaming stuck devices: $e');
+        debugPrint('[GlobalAlarmService] Error streaming devices: $e');
       });
     }
   }
@@ -151,6 +163,11 @@ class GlobalAlarmService {
     dismissDialog();
     _stuckDevices.clear();
     _silencedUntil.clear();
+    _lastSeenValues.clear();
+    _lastSeenLocalTimes.clear();
+    _gatewayLostEpisodeActive.clear();
+    _gatewayLostDevices.clear();
+    _activeTripDevices.clear();
     currentPayload.value = null;
     for (final id in _notifiedStuckDeviceIds) {
       NotificationService().cancelStuckNotification(id);
@@ -181,18 +198,53 @@ class GlobalAlarmService {
       return false;
     });
 
-    if (expiredAny) {
+    bool gatewayLostChanged = false;
+    final bridgeRunning = _isBridgeRunning?.call() ?? false;
+    if (!bridgeRunning) {
+      for (final entry in _activeTripDevices.entries) {
+        final deviceId = entry.key;
+        final device = entry.value;
+        if (device.status == 'stuck') continue;
+
+        final localTime = _lastSeenLocalTimes[deviceId];
+        if (localTime != null) {
+          if (now.difference(localTime).inSeconds >= 45) {
+            if (!_gatewayLostEpisodeActive.contains(deviceId)) {
+              _gatewayLostEpisodeActive.add(deviceId);
+              _gatewayLostDevices[deviceId] = device.copyWith(
+                status: 'stuck',
+                alarmReason: 'gateway_lost',
+              );
+              gatewayLostChanged = true;
+              if (!_notifiedStuckDeviceIds.contains(deviceId)) {
+                _notifiedStuckDeviceIds.add(deviceId);
+                NotificationService().showStuckNotification(
+                  deviceId: deviceId,
+                  deviceName: device.currentName,
+                  tripId: device.activeTripId,
+                );
+              }
+            }
+          }
+        }
+      }
+    }
+
+    if (expiredAny || gatewayLostChanged) {
       _evaluateState();
     }
   }
 
-  void _onStuckDevicesUpdated(List<DeviceModel> updatedStuck) {
+  void _onDevicesUpdated(List<DeviceModel> devices) {
     if (!_isAuthenticated) return;
-    _stuckDevices = updatedStuck;
-    final currentIds = updatedStuck.map((d) => d.deviceId).toSet();
-    _silencedUntil.removeWhere((id, _) => !currentIds.contains(id));
+    final now = DateTime.now();
 
-    for (final device in updatedStuck) {
+    final stuck = devices.where((d) => d.status == 'stuck').toList();
+    _stuckDevices = stuck;
+    final currentStuckIds = stuck.map((d) => d.deviceId).toSet();
+    _silencedUntil.removeWhere((id, _) => !currentStuckIds.contains(id) && !_gatewayLostDevices.containsKey(id));
+
+    for (final device in stuck) {
       if (!_notifiedStuckDeviceIds.contains(device.deviceId)) {
         _notifiedStuckDeviceIds.add(device.deviceId);
         NotificationService().showStuckNotification(
@@ -203,7 +255,44 @@ class GlobalAlarmService {
       }
     }
 
-    final resolvedIds = _notifiedStuckDeviceIds.difference(currentIds).toList();
+    final activeDevices = <String, DeviceModel>{};
+    for (final device in devices) {
+      if (device.activeTripId != null && device.activeTripId!.isNotEmpty) {
+        activeDevices[device.deviceId] = device;
+
+        if (!_lastSeenLocalTimes.containsKey(device.deviceId)) {
+          _lastSeenLocalTimes[device.deviceId] = now;
+          if (device.lastSeen != null) {
+            _lastSeenValues[device.deviceId] = device.lastSeen!;
+          }
+        } else {
+          final prev = _lastSeenValues[device.deviceId];
+          if (device.lastSeen != null && (prev == null || !device.lastSeen!.isAtSameMomentAs(prev))) {
+            _lastSeenValues[device.deviceId] = device.lastSeen!;
+            _lastSeenLocalTimes[device.deviceId] = now;
+            _gatewayLostEpisodeActive.remove(device.deviceId);
+            if (_gatewayLostDevices.remove(device.deviceId) != null) {
+              NotificationService().cancelStuckNotification(device.deviceId);
+            }
+          }
+        }
+      } else {
+        _lastSeenLocalTimes.remove(device.deviceId);
+        _lastSeenValues.remove(device.deviceId);
+        _gatewayLostEpisodeActive.remove(device.deviceId);
+        if (_gatewayLostDevices.remove(device.deviceId) != null) {
+          NotificationService().cancelStuckNotification(device.deviceId);
+        }
+      }
+    }
+    _activeTripDevices
+      ..clear()
+      ..addAll(activeDevices);
+
+    final resolvedIds = _notifiedStuckDeviceIds
+        .difference(currentStuckIds)
+        .where((id) => !_gatewayLostDevices.containsKey(id))
+        .toList();
     for (final id in resolvedIds) {
       _notifiedStuckDeviceIds.remove(id);
       NotificationService().cancelStuckNotification(id);
@@ -218,8 +307,19 @@ class GlobalAlarmService {
     return DateTime.now().isBefore(expire);
   }
 
+  List<DeviceModel> _getAllStuckDevices() {
+    final list = List<DeviceModel>.from(_stuckDevices);
+    final stuckIds = list.map((d) => d.deviceId).toSet();
+    for (final dev in _gatewayLostDevices.values) {
+      if (!stuckIds.contains(dev.deviceId)) {
+        list.add(dev);
+      }
+    }
+    return list;
+  }
+
   List<DeviceModel> _getUnsilencedStuckDevices() {
-    return _stuckDevices.where((d) => !_isSilenced(d.deviceId)).toList();
+    return _getAllStuckDevices().where((d) => !_isSilenced(d.deviceId)).toList();
   }
 
   Future<ActiveTripModel?> _lookupActiveTrip(DeviceModel device) async {
@@ -289,7 +389,7 @@ class GlobalAlarmService {
     final payload = GlobalAlarmPayload(
       device: nextDevice,
       trip: trip,
-      totalStuckCount: _stuckDevices.length,
+      totalStuckCount: _getAllStuckDevices().length,
     );
 
     currentPayload.value = payload;
@@ -389,6 +489,8 @@ class GlobalAlarmService {
         nurseIdentifier: nurseName,
       );
       _stuckDevices.removeWhere((d) => d.deviceId == device.deviceId);
+      _gatewayLostDevices.remove(device.deviceId);
+      _gatewayLostEpisodeActive.remove(device.deviceId);
       _silencedUntil.remove(device.deviceId);
       _notifiedStuckDeviceIds.remove(device.deviceId);
       NotificationService().cancelStuckNotification(device.deviceId);
@@ -420,6 +522,8 @@ class GlobalAlarmService {
         nurseIdentifier: nurseName,
       );
       _stuckDevices.removeWhere((d) => d.deviceId == device.deviceId);
+      _gatewayLostDevices.remove(device.deviceId);
+      _gatewayLostEpisodeActive.remove(device.deviceId);
       _silencedUntil.remove(device.deviceId);
       _notifiedStuckDeviceIds.remove(device.deviceId);
       NotificationService().cancelStuckNotification(device.deviceId);

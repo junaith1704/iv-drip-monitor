@@ -53,6 +53,19 @@ class GlobalAlarmDialog extends StatelessWidget {
     return DateFormat('h:mm a, MMM d').format(trip!.startTime);
   }
 
+  String? _getReasonText(String? alarmReason) {
+    switch (alarmReason) {
+      case 'flow_stopped':
+        return 'Drip flow stopped';
+      case 'board_offline':
+        return 'Board disconnected';
+      case 'gateway_lost':
+        return 'Gateway phone lost contact';
+      default:
+        return null;
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final location = _extractLocation(device.currentName);
@@ -60,6 +73,7 @@ class GlobalAlarmDialog extends StatelessWidget {
     final issueFluid = trip?.issue.isNotEmpty == true ? trip!.issue : 'Unspecified Fluid';
     final startTimeStr = _formatStartTime();
     final stoppedTimeStr = _formatStoppedTime();
+    final reasonText = _getReasonText(device.alarmReason);
 
     return PopScope(
       canPop: false,
@@ -111,6 +125,19 @@ class GlobalAlarmDialog extends StatelessWidget {
                               ),
                             ),
                           ),
+                          if (reasonText != null) ...[
+                            const SizedBox(height: 6),
+                            Center(
+                              child: Text(
+                                reasonText,
+                                style: const TextStyle(
+                                  fontSize: 15,
+                                  fontWeight: FontWeight.w700,
+                                  color: ClinicalTheme.textPrimary,
+                                ),
+                              ),
+                            ),
+                          ],
                           const SizedBox(height: 6),
                           Center(
                             child: Text(
@@ -196,7 +223,28 @@ class GlobalAlarmDialog extends StatelessWidget {
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.stretch,
                           children: [
-                            if (isNurse) ...[
+                            if (device.alarmReason == 'gateway_lost') ...[
+                              OutlinedButton.icon(
+                                onPressed: onSilence60s,
+                                style: OutlinedButton.styleFrom(
+                                  foregroundColor: ClinicalTheme.deepNavy,
+                                  side: const BorderSide(color: ClinicalTheme.borderSubtle, width: 1.5),
+                                  backgroundColor: Colors.white,
+                                  padding: const EdgeInsets.symmetric(vertical: 14),
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(12),
+                                  ),
+                                ),
+                                icon: const Icon(Icons.volume_off_rounded, size: 20),
+                                label: const Text(
+                                  'Silence 60 s',
+                                  style: TextStyle(
+                                    fontSize: 14,
+                                    fontWeight: FontWeight.w700,
+                                  ),
+                                ),
+                              ),
+                            ] else if (isNurse) ...[
                               ElevatedButton.icon(
                                 onPressed: onFlowResumed,
                                 style: ElevatedButton.styleFrom(

@@ -304,7 +304,6 @@ class HardwareBridgeService extends ChangeNotifier {
       state: state,
       speed: speed,
       battery: battery,
-      dpm: dpm,
       boardOnline: true,
     );
 
@@ -313,15 +312,30 @@ class HardwareBridgeService extends ChangeNotifier {
 
   Future<void> _handleFailure(_DevicePollingState state) async {
     state.consecutiveFailures++;
+    state.offlineStartTime ??= DateTime.now();
+
+    final trip = _activeTripsByDeviceId[state.deviceId];
+    if (trip != null && trip.status == 'running' && !state.alarmRaised) {
+      if (DateTime.now().difference(state.offlineStartTime!) >= const Duration(seconds: 10)) {
+        state.alarmRaised = true;
+        tripService.simulateDropStop(
+          deviceId: state.deviceId,
+          alarmReason: 'board_offline',
+        );
+        NotificationService().showStuckNotification(
+          deviceId: state.deviceId,
+          deviceName: trip.deviceName,
+          tripId: trip.tripId,
+        );
+      }
+    }
 
     if (state.consecutiveFailures >= 5) {
       if (state.isOnline) {
         state.isOnline = false;
-        state.offlineStartTime = DateTime.now();
         _deviceOnlineMap[state.deviceId] = false;
         notifyListeners();
       } else {
-        state.offlineStartTime ??= DateTime.now();
         _deviceOnlineMap[state.deviceId] = false;
       }
 
@@ -329,27 +343,8 @@ class HardwareBridgeService extends ChangeNotifier {
         state: state,
         speed: state.lastSpeed,
         battery: state.lastBattery,
-        dpm: state.lastDpm,
         boardOnline: false,
       );
-
-      final trip = _activeTripsByDeviceId[state.deviceId];
-      if (trip != null && trip.status == 'running' && state.offlineStartTime != null) {
-        if (DateTime.now().difference(state.offlineStartTime!) >= const Duration(seconds: 20)) {
-          if (!state.offlineNotificationShown) {
-            state.offlineNotificationShown = true;
-            await _showOfflineNotification(state.deviceId, trip.deviceName);
-            try {
-              await _firestore.collection('devices').doc(state.deviceId).set({
-                'boardOnline': false,
-                'lastUpdated': FieldValue.serverTimestamp(),
-              }, SetOptions(merge: true));
-            } catch (e) {
-              debugPrint('[HardwareBridgeService] Write offline error for ${state.deviceId}: $e');
-            }
-          }
-        }
-      }
     }
   }
 
@@ -357,7 +352,6 @@ class HardwareBridgeService extends ChangeNotifier {
     required _DevicePollingState state,
     required String? speed,
     required int? battery,
-    required double? dpm,
     required bool boardOnline,
   }) async {
     final now = DateTime.now();
@@ -365,8 +359,12 @@ class HardwareBridgeService extends ChangeNotifier {
         battery != state.lastWrittenBattery ||
         boardOnline != state.lastWrittenBoardOnline;
 
+    final trip = _activeTripsByDeviceId[state.deviceId];
+    final bool hasActiveTrip = trip != null && (trip.status == 'running' || trip.status == 'stuck');
+    final int heartbeatIntervalSeconds = hasActiveTrip ? 15 : 60;
+
     final bool heartbeatDue = state.lastHeartbeatWriteTime == null ||
-        now.difference(state.lastHeartbeatWriteTime!) >= const Duration(seconds: 60);
+        now.difference(state.lastHeartbeatWriteTime!) >= Duration(seconds: heartbeatIntervalSeconds);
 
     if (!stateChanged && !heartbeatDue) {
       return;
@@ -381,7 +379,6 @@ class HardwareBridgeService extends ChangeNotifier {
       await _firestore.collection('devices').doc(state.deviceId).set({
         'speed': speed,
         'battery': battery,
-        'dpm': dpm,
         'boardOnline': boardOnline,
         'lastSeen': FieldValue.serverTimestamp(),
       }, SetOptions(merge: true));
@@ -410,34 +407,18 @@ class HardwareBridgeService extends ChangeNotifier {
       referenceTime = state.flowResumedTime!;
     }
 
-    if (now.difference(referenceTime) >= const Duration(seconds: 20)) {
+    if (now.difference(referenceTime) >= const Duration(seconds: 15)) {
       state.alarmRaised = true;
-      tripService.simulateDropStop(deviceId: state.deviceId);
+      tripService.simulateDropStop(
+        deviceId: state.deviceId,
+        alarmReason: 'flow_stopped',
+      );
       NotificationService().showStuckNotification(
         deviceId: state.deviceId,
         deviceName: trip.deviceName,
         tripId: trip.tripId,
       );
     }
-  }
-
-  Future<void> _showOfflineNotification(String deviceId, String deviceName) async {
-    if (kIsWeb) return;
-    const androidDetails = AndroidNotificationDetails(
-      'board_offline_channel',
-      'Hardware Status',
-      channelDescription: 'Notifications for hardware connectivity issues',
-      importance: Importance.defaultImportance,
-      priority: Priority.defaultPriority,
-    );
-    const details = NotificationDetails(android: androidDetails);
-    final int notifId = (deviceId.hashCode & 0x7FFFFFFF) ^ 0x12345678;
-    await _notificationsPlugin.show(
-      notifId,
-      'Hardware Notice',
-      'Board not responding, check the drip manually ($deviceName)',
-      details,
-    );
   }
 
   Future<void> _cancelOfflineNotification(String deviceId) async {
